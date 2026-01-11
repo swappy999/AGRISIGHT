@@ -10,6 +10,8 @@ import 'package:agrisight/features/crop_status/crop_status_screen.dart';
 import 'package:agrisight/features/voice_ai/voice_ai_screen.dart';
 import 'package:agrisight/features/chat/chat_screen.dart';
 import 'package:agrisight/features/ipm_strategy/ipm_strategy_screen.dart';
+import 'package:agrisight/features/scan_leaf/scan_leaf_screen.dart';
+import 'package:agrisight/features/scan_leaf/treatment_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -166,6 +168,43 @@ final router = GoRouter(
           );
         },
       ),
+    ),
+    GoRoute(
+      path: '/scan-leaf',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const ScanLeafScreen(),
+        transitionDuration: const Duration(milliseconds: 400),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            child: child,
+          );
+        },
+      ),
+    ),
+    GoRoute(
+      path: '/treatment',
+      pageBuilder: (context, state) {
+        final diseaseId = state.extra as String? ?? '';
+        return CustomTransitionPage(
+          key: state.pageKey,
+          child: TreatmentScreen(diseaseId: diseaseId),
+          transitionDuration: const Duration(milliseconds: 400),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1, 0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            );
+          },
+        );
+      },
     ),
   ],
 );

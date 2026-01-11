@@ -7,6 +7,7 @@ import 'package:agrisight/features/dashboard/widgets/health_trend_graph.dart';
 import 'package:agrisight/features/dashboard/widgets/notification_panel.dart';
 import 'package:agrisight/features/dashboard/widgets/profile_panel.dart';
 import 'package:agrisight/features/dashboard/widgets/ipm_strategy_widget.dart';
+import 'package:agrisight/shared/widgets/scan_leaf_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -142,6 +143,12 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text('Home', style: theme.textTheme.h3),
         actions: [
+          // Scan Leaf button
+          IconButton(
+            icon: const ScanLeafIcon(size: 24, outlined: true),
+            tooltip: 'Scan Leaf',
+            onPressed: () => context.go('/scan-leaf'),
+          ),
           // Notification button with badge
           Stack(
             children: [
