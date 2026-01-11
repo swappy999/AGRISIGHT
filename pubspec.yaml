@@ -1,0 +1,42 @@
+name: agrisight
+description: An AI driven agriculture web app.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  
+  # UI Libraries
+  shadcn_ui: ^0.43.1 
+  forui: ^0.17.0 
+  
+  # Navigation
+  go_router: ^14.0.0
+
+  # State Management (using standard ValueNotifier or Provider if needed, keeping it simple for now)
+  
+  # Data Visualization
+  fl_chart: ^0.68.0
+  
+  # Typography & Animations
+  google_fonts: ^6.1.0
+  flutter_animate: ^4.5.0
+  
+  # Utils
+  intl: ^0.20.2
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
