@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AGRISIGHT</title>
+  <style>
+    body { font-family: Arial; }
+    #chat { height:300px; overflow:auto; border:1px solid #ccc; padding:10px; }
+  </style>
+</head>
+<body>
+
+<h2>🌿 AGRISIGHT</h2>
+
+<button onclick="startVoice()">🎤 Speak</button>
+<input id="text" placeholder="Type question">
+<button onclick="sendText()">Send</button>
+<br><br>
+
+<input type="file" id="image">
+<button onclick="scan()">📷 Scan Leaf</button>
+
+<h3>Chat</h3>
+<div id="chat"></div>
+
+<h3>🚨 Alerts</h3>
+<ul id="alerts"></ul>
+
+<script>
+let session = "farmer1";
+let lang = "en";
+let leafCount = 0;
+let currentLeaf = null;
+let loc = {};
+
+navigator.geolocation.getCurrentPosition(p=>{
+  loc.lat = p.coords.latitude;
+  loc.lon = p.coords.longitude;
+});
+
+function detect(t){
+  if(/[অ-হ]/.test(t)) return "bn";
+  if(/[अ-ह]/.test(t)) return "hi";
+  return "en";
+}
+
+function say(text){
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = (lang==="en")?"en-US":"hi-IN";
+  speechSynthesis.speak(u);
+}
+
+function add(who, txt){
+  document.getElementById("chat").innerHTML += `<b>${who}:</b> ${txt}<br>`;
+}
+
+const rec = new (window.SpeechRecognition||webkitSpeechRecognition)();
+rec.onresult=e=>{
+  const t=e.results[0][0].transcript;
+  lang=detect(t);
+  add("You",t);
+  chat(t);
+}
+
+function startVoice(){ rec.start(); }
+
+function sendText(){
+  const t=document.getElementById("text").value;
+  lang=detect(t);
+  add("You",t);
+  chat(t);
+}
+
+async function scan(){
+  const f=document.getElementById("image").files[0];
+  leafCount++;
+  currentLeaf="leaf"+leafCount;
+
+  const fd=new FormData();
+  fd.append("session_id",session+"_"+currentLeaf);
+  fd.append("image",f);
+  fd.append("lat",loc.lat);
+  fd.append("lon",loc.lon);
+
+  const r=await fetch("/analyze",{method:"POST",body:fd});
+  const d=await r.json();
+
+  add("AI",d.result.farmer_answer_en);
+  say(d.result.farmer_answer_en);
+
+  const ul=document.getElementById("alerts");
+  ul.innerHTML="";
+  d.alerts.forEach(a=>ul.innerHTML+=`<li>${a}</li>`);
+}
+
+async function chat(t){
+  const r=await fetch("/chat",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      session_id: currentLeaf?session+"_"+currentLeaf:session,
+      message:t,
+      lat:loc.lat,
+      lon:loc.lon
+    })
+  });
+  const d=await r.json();
+  const ans = lang==="bn"?d.farmer_answer_bn:lang==="hi"?d.farmer_answer_hi:d.farmer_answer_en;
+  add("AI",ans);
+  say(ans);
+}
+
+// daily weather update
+setInterval(()=>chat("Give today disease risk update"),21600000);
+</script>
+
+</body>
+</html>
