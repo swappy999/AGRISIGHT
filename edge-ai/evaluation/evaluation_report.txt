@@ -1,0 +1,36 @@
+AgriSight Edge AI — Evaluation Report
+==================================================
+
+Model         : agrisight-edge-crop-v1
+Architecture  : MobileNetV3-Small
+Test samples  : 59
+Uncertain     : 21 (35.6%)
+
+── Classification Metrics ──
+Accuracy      : 0.8644 (86.4%)
+Precision     : 0.8235
+Recall        : 0.9333
+F1 Score      : 0.8750
+
+── Error Rates (KEY METRIC) ──
+Non-crop FPR  : 0.0667 (6.7%)  ← NON-CROP classified as CROP
+Crop FNR      : 0.2069 (20.7%)  ← CROP classified as NON-CROP
+
+── Confusion Matrix ──
+                 Predicted CROP  Predicted NON-CROP
+Actual CROP                  23                   6
+Actual NON-CROP               2                  28
+
+── Inference Performance ──
+Avg inference : 2.4 ms
+P95 inference : 3.5 ms
+
+── Classification Report ──
+              precision    recall  f1-score   support
+
+        crop       0.82      0.93      0.88        30
+    non-crop       0.92      0.79      0.85        29
+
+    accuracy                           0.86        59
+   macro avg       0.87      0.86      0.86        59
+weighted avg       0.87      0.86      0.86        59

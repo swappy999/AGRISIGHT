@@ -1,0 +1,26 @@
+AgriSight Edge AI — Dataset Statistics
+==================================================
+
+Class: CROP
+  Raw total    : 200
+  Accepted     : 200
+  Rejected     : 0
+  Duplicates   : 0
+  Train        : 140
+  Validation   : 30
+  Test         : 30
+
+Class: NON-CROP
+  Raw total    : 185
+  Accepted     : 185
+  Rejected     : 0
+  Duplicates   : 0
+  Train        : 129
+  Validation   : 27
+  Test         : 29
+
+TOTALS
+  Train       : 269
+  Validation  : 57
+  Test        : 59
+  Grand total : 385

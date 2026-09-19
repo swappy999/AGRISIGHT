@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AgriSight - Notifications</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "secondary-fixed-dim": "#b3ddd1",
+                "primary": "#2d6a4f",
+                "on-secondary-fixed-variant": "#3c6359",
+                "surface-container": "#e8f0e9",
+                "on-tertiary-container": "#4e000a",
+                "error-dim": "#67040d",
+                "on-background": "#2b352f",
+                "on-tertiary": "#fff7f6",
+                "surface-container-high": "#e2eae3",
+                "primary-fixed": "#b1f0ce",
+                "secondary-fixed": "#c1ebdf",
+                "on-tertiary-fixed-variant": "#60000e",
+                "on-secondary": "#e3fff6",
+                "secondary-dim": "#345a51",
+                "tertiary-fixed": "#fc7777",
+                "surface-dim": "#d2ddd4",
+                "on-tertiary-fixed": "#000000",
+                "inverse-on-surface": "#9a9e9a",
+                "on-primary-container": "#1d5c42",
+                "inverse-surface": "#0b0f0d",
+                "on-primary": "#e6ffee",
+                "on-primary-fixed": "#014931",
+                "surface-container-lowest": "#ffffff",
+                "surface-variant": "#dbe5dd",
+                "tertiary-container": "#fc7777",
+                "primary-container": "#b1f0ce",
+                "tertiary-fixed-dim": "#ec6b6b",
+                "on-error-container": "#6e0a12",
+                "surface-container-highest": "#dbe5dd",
+                "error": "#a83836",
+                "primary-dim": "#1f5e44",
+                "on-error": "#fff7f6",
+                "surface": "#f7faf5",
+                "surface-container-low": "#eff5ef",
+                "secondary": "#40665d",
+                "background": "#f7faf5",
+                "on-surface": "#2b352f",
+                "outline-variant": "#aab4ad",
+                "on-secondary-fixed": "#1f463d",
+                "primary-fixed-dim": "#a3e2c0",
+                "on-primary-fixed-variant": "#29664c",
+                "on-surface-variant": "#58615b",
+                "tertiary-dim": "#972c30",
+                "surface-tint": "#2d6a4f",
+                "error-container": "#fa746f",
+                "surface-bright": "#f7faf5",
+                "outline": "#737d76",
+                "tertiary": "#a8383b",
+                "inverse-primary": "#beffdc",
+                "secondary-container": "#c1ebdf",
+                "on-secondary-container": "#325950"
+            },
+            "borderRadius": {
+                "DEFAULT": "1rem",
+                "lg": "2rem",
+                "xl": "3rem",
+                "full": "9999px"
+            },
+            "fontFamily": {
+                "headline": ["Manrope"],
+                "body": ["Plus Jakarta Sans"],
+                "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #f7faf5;
+            color: #2b352f;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(20px);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-[#f7faf5]/70 dark:bg-[#1a1c19]/70 backdrop-blur-xl docked full-width top-0 sticky z-50 flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="hover:bg-[#eff5ef] dark:hover:bg-[#2b352f] transition-colors p-2 rounded-full active:scale-95 duration-200 ease-out">
+<span class="material-symbols-outlined text-[#2d6a4f] dark:text-[#b1f0ce]" data-icon="menu">menu</span>
+</button>
+<h1 class="font-manrope font-bold text-xl tracking-tight text-[#2d6a4f] dark:text-[#b1f0ce]">
+                AgriSight <span class="font-black italic">🌱</span>
+</h1>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container shadow-sm">
+<img alt="User profile photo" data-alt="Close up portrait of a professional modern farmer wearing a denim shirt, smiling warmly, soft morning natural lighting outdoors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjopVxhtCnSNK62EIaUBuizGidk751wBk5tNEhFGB4tll2_bZ_Qk60YZH77a2a-hydupuqqQzhEto3rkHAjwzhktHSF5S28Q79KwHMHtitSyUlyHwU_Bzhwhl5rsN9N_HlRsT_5uPyOYtZhyMYZOB0TCquLxSsDLJ037MFPJYTgADxZPDUYZnDAHpsLhmNrlsTOBA5Abr86rQl57ZRwcMKPe1k5CjRYsYQEG4z_Vxm4l-CujfdF1W25EbqKku9H03t90LBhRQckPX8"/>
+</div>
+</header>
+<main class="max-w-xl mx-auto px-6 pt-8">
+<!-- Editorial Header -->
+<div class="mb-10">
+<span class="font-label text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-2 block">Journal</span>
+<h2 class="font-headline font-extrabold text-4xl text-on-surface leading-tight">Notifications</h2>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-3 mb-10 overflow-x-auto no-scrollbar pb-2">
+<button class="bg-primary-dim text-on-primary px-8 py-3 rounded-full font-label font-bold text-sm shadow-lg active:scale-95 transition-all">
+                All
+            </button>
+<button class="bg-surface-container-highest text-on-surface-variant px-8 py-3 rounded-full font-label font-bold text-sm hover:bg-surface-container-high transition-all">
+                Critical
+            </button>
+<button class="bg-surface-container-highest text-on-surface-variant px-8 py-3 rounded-full font-label font-bold text-sm hover:bg-surface-container-high transition-all">
+                Normal
+            </button>
+</div>
+<!-- Notification List -->
+<div class="space-y-4">
+<!-- Notification Card: Critical -->
+<div class="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:bg-surface-container transition-colors">
+<div class="flex gap-4">
+<div class="flex-shrink-0 mt-1">
+<div class="w-3 h-3 rounded-full bg-tertiary-container shadow-[0_0_12px_rgba(252,119,119,0.5)]"></div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline font-bold text-lg text-on-surface group-hover:text-primary transition-colors">Potential Wheat Rust Detected</h3>
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">2m ago</span>
+</div>
+<p class="font-body text-on-surface-variant leading-relaxed text-sm mb-4">Satellite multispectral analysis indicates high spore concentration in Sector 7B. Immediate inspection recommended.</p>
+<div class="flex gap-2">
+<div class="bg-tertiary-container/10 px-3 py-1 rounded-full flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-tertiary" data-icon="warning" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="font-label text-[10px] font-bold text-tertiary uppercase">High Priority</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Card: Normal -->
+<div class="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:bg-surface-container transition-colors">
+<div class="flex gap-4">
+<div class="flex-shrink-0 mt-1">
+<div class="w-3 h-3 rounded-full bg-[#FDE047] shadow-[0_0_12px_rgba(253,224,71,0.3)]"></div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline font-bold text-lg text-on-surface group-hover:text-primary transition-colors">Irrigation Cycle Complete</h3>
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">1h ago</span>
+</div>
+<p class="font-body text-on-surface-variant leading-relaxed text-sm mb-4">North Field irrigation system has completed the scheduled morning cycle. Soil moisture now at 84%.</p>
+<div class="flex gap-2">
+<div class="bg-primary-container/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-primary" data-icon="water_drop" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+<span class="font-label text-[10px] font-bold text-primary uppercase">Activity Log</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Card: Critical -->
+<div class="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:bg-surface-container transition-colors">
+<div class="flex gap-4">
+<div class="flex-shrink-0 mt-1">
+<div class="w-3 h-3 rounded-full bg-tertiary-container shadow-[0_0_12px_rgba(252,119,119,0.5)]"></div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline font-bold text-lg text-on-surface group-hover:text-primary transition-colors">Sensor Node 12 Offline</h3>
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">4h ago</span>
+</div>
+<p class="font-body text-on-surface-variant leading-relaxed text-sm mb-4">Gateway connection lost with soil probe at coordinates 45.32, -121.45. Check battery levels.</p>
+<div class="flex gap-2">
+<div class="bg-tertiary-container/10 px-3 py-1 rounded-full flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-tertiary" data-icon="error" style="font-variation-settings: 'FILL' 1;">error</span>
+<span class="font-label text-[10px] font-bold text-tertiary uppercase">Hardware Alert</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Card: Normal -->
+<div class="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:bg-surface-container transition-colors">
+<div class="flex gap-4">
+<div class="flex-shrink-0 mt-1">
+<div class="w-3 h-3 rounded-full bg-[#FDE047] shadow-[0_0_12px_rgba(253,224,71,0.3)]"></div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline font-bold text-lg text-on-surface group-hover:text-primary transition-colors">Weekly Harvest Summary</h3>
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Yesterday</span>
+</div>
+<p class="font-body text-on-surface-variant leading-relaxed text-sm mb-4">Your weekly yield report for the organic corn plot is now available for review.</p>
+<div class="flex gap-2">
+<div class="bg-secondary-container/30 px-3 py-1 rounded-full flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-secondary" data-icon="assessment" style="font-variation-settings: 'FILL' 1;">assessment</span>
+<span class="font-label text-[10px] font-bold text-secondary uppercase">Report</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Empty State Anchor (Decorative) -->
+<div class="mt-12 flex flex-col items-center opacity-20">
+<span class="material-symbols-outlined text-4xl mb-2" data-icon="notifications_off">notifications_off</span>
+<p class="font-label text-[10px] font-bold uppercase tracking-widest">End of feed</p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-end pb-6 px-8 h-24 bg-[#f7faf5]/70 dark:bg-[#1a1c19]/70 backdrop-blur-xl shadow-[0_-8px_24px_rgba(43,53,47,0.06)] rounded-t-[3rem]">
+<!-- Home Tab -->
+<div class="flex flex-col items-center justify-center text-[#58615b] dark:text-[#aab4ad] p-2 hover:text-[#2d6a4f] dark:hover:text-[#b1f0ce] transition-colors cursor-pointer">
+<span class="material-symbols-outlined mb-1" data-icon="home">home</span>
+<span class="font-plus-jakarta text-[10px] font-bold uppercase tracking-widest">Home</span>
+</div>
+<!-- Alerts Tab (Active) -->
+<div class="flex flex-col items-center justify-center bg-gradient-to-br from-[#2d6a4f] to-[#1f5e44] text-white rounded-full p-3 mb-2 transform -translate-y-1 shadow-lg active:tactile scale-90 duration-300 cursor-pointer">
+<span class="material-symbols-outlined" data-icon="notifications" style="font-variation-settings: 'FILL' 1;">notifications</span>
+<span class="sr-only">Alerts</span>
+</div>
+<!-- Profile Tab -->
+<div class="flex flex-col items-center justify-center text-[#58615b] dark:text-[#aab4ad] p-2 hover:text-[#2d6a4f] dark:hover:text-[#b1f0ce] transition-colors cursor-pointer">
+<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
+<span class="font-plus-jakarta text-[10px] font-bold uppercase tracking-widest">Profile</span>
+</div>
+</nav>
+</body></html>

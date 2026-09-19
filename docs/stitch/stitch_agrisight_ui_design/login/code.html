@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AgriSight - Login</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed-dim": "#b3ddd1",
+                    "primary": "#2d6a4f",
+                    "on-secondary-fixed-variant": "#3c6359",
+                    "surface-container": "#e8f0e9",
+                    "on-tertiary-container": "#4e000a",
+                    "error-dim": "#67040d",
+                    "on-background": "#2b352f",
+                    "on-tertiary": "#fff7f6",
+                    "surface-container-high": "#e2eae3",
+                    "primary-fixed": "#b1f0ce",
+                    "secondary-fixed": "#c1ebdf",
+                    "on-tertiary-fixed-variant": "#60000e",
+                    "on-secondary": "#e3fff6",
+                    "secondary-dim": "#345a51",
+                    "tertiary-fixed": "#fc7777",
+                    "surface-dim": "#d2ddd4",
+                    "on-tertiary-fixed": "#000000",
+                    "inverse-on-surface": "#9a9e9a",
+                    "on-primary-container": "#1d5c42",
+                    "inverse-surface": "#0b0f0d",
+                    "on-primary": "#e6ffee",
+                    "on-primary-fixed": "#014931",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-variant": "#dbe5dd",
+                    "tertiary-container": "#fc7777",
+                    "primary-container": "#b1f0ce",
+                    "tertiary-fixed-dim": "#ec6b6b",
+                    "on-error-container": "#6e0a12",
+                    "surface-container-highest": "#dbe5dd",
+                    "error": "#a83836",
+                    "primary-dim": "#1f5e44",
+                    "on-error": "#fff7f6",
+                    "surface": "#f7faf5",
+                    "surface-container-low": "#eff5ef",
+                    "secondary": "#40665d",
+                    "background": "#f7faf5",
+                    "on-surface": "#2b352f",
+                    "outline-variant": "#aab4ad",
+                    "on-secondary-fixed": "#1f463d",
+                    "primary-fixed-dim": "#a3e2c0",
+                    "on-primary-fixed-variant": "#29664c",
+                    "on-surface-variant": "#58615b",
+                    "tertiary-dim": "#972c30",
+                    "surface-tint": "#2d6a4f",
+                    "error-container": "#fa746f",
+                    "surface-bright": "#f7faf5",
+                    "outline": "#737d76",
+                    "tertiary": "#a8383b",
+                    "inverse-primary": "#beffdc",
+                    "secondary-container": "#c1ebdf",
+                    "on-secondary-container": "#325950"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": [
+                            "Manrope"
+                    ],
+                    "body": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "label": [
+                            "Plus Jakarta Sans"
+                    ]
+            }
+        },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f7faf5; /* From surface token */
+        }
+        .headline-font {
+            font-family: 'Manrope', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-on-surface min-h-screen flex flex-col">
+<!-- Main Content Canvas -->
+<main class="flex-grow flex items-center justify-center px-6 py-12">
+<!-- Login Card Container -->
+<div class="w-full max-auto max-w-[440px] flex flex-col gap-8">
+<!-- Brand Identity Anchor -->
+<div class="flex flex-col items-center gap-4">
+<div class="w-16 h-16 bg-primary-container rounded-xl flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-4xl" data-icon="potted_plant">potted_plant</span>
+</div>
+<div class="text-center">
+<h1 class="headline-font font-extrabold text-3xl tracking-tight text-primary">AgriSight 🌱</h1>
+<p class="text-on-surface-variant font-medium mt-1">Cultivating precision data.</p>
+</div>
+</div>
+<!-- The Content Card: White space & Shadow Atmospheric -->
+<div class="bg-surface-container-lowest rounded-xl p-10 shadow-[0_8px_24px_rgba(43,53,47,0.06)] border border-outline-variant/10">
+<form action="#" class="flex flex-col gap-6">
+<!-- Email Field -->
+<div class="flex flex-col gap-2">
+<label class="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1" for="email">
+                            Email Address
+                        </label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" data-icon="mail">mail</span>
+<input class="w-full h-16 pl-12 pr-4 rounded-lg bg-surface-container-low border-none focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all text-on-surface placeholder:text-outline/60" id="email" name="email" placeholder="farmer@agrisight.com" type="email"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="flex flex-col gap-2">
+<label class="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1" for="password">
+                            Password
+                        </label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" data-icon="lock">lock</span>
+<input class="w-full h-16 pl-12 pr-12 rounded-lg bg-surface-container-low border-none focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all text-on-surface placeholder:text-outline/60" id="password" name="password" placeholder="••••••••" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary" type="button">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</div>
+<div class="flex justify-end mt-1">
+<a class="text-sm font-medium text-primary hover:text-primary-dim transition-colors" href="#">Forgot password?</a>
+</div>
+</div>
+<!-- Action Layer -->
+<div class="mt-4 flex flex-col gap-4">
+<button class="h-16 w-full rounded-full bg-gradient-to-br from-primary to-primary-dim text-on-primary font-bold text-lg shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2" type="submit">
+<span>Login</span>
+<span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<div class="flex items-center justify-center gap-2 py-2">
+<span class="text-on-surface-variant text-sm">New to the field?</span>
+<a class="text-primary font-bold hover:underline transition-all" href="#">Sign up</a>
+</div>
+</div>
+</form>
+</div>
+<!-- Footer Minimalist -->
+<footer class="text-center">
+<p class="text-xs text-on-surface-variant/60 font-medium tracking-wide">
+                    © 2024 AgriSight Editorial. All rights reserved.
+                </p>
+</footer>
+</div>
+</main>
+<!-- Background Illustration (Asymmetric Bento Element) -->
+<div class="fixed top-[-10%] right-[-5%] w-[400px] h-[400px] bg-primary-container/20 rounded-full blur-3xl -z-10"></div>
+<div class="fixed bottom-[-5%] left-[-5%] w-[300px] h-[300px] bg-secondary-container/20 rounded-full blur-3xl -z-10"></div>
+<!-- Background Card Contextual Image (Decorative) -->
+<div class="fixed top-12 left-12 w-64 h-64 rounded-xl overflow-hidden opacity-10 hidden xl:block grayscale hover:grayscale-0 transition-all duration-700">
+<img class="w-full h-full object-cover" data-alt="Close-up of young green seedlings sprouting from rich dark soil in a modern minimalist nursery environment with soft morning light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCaj0uhydWdX77GIe5Fp69Cf8u9DDBUkGP5NGdUJN2w-cgNlPPZ5FwkQby7mBkSy8fKZa9fuRh0yEajFZ2FKscGQ3nAda9vH576zOlMmuCW3RSHT78VCkFJIBU3kikcSu6Pxke8QH7y4eOx18xBActUdMyhdjEKP0m_3K83C4Zz2SGe5DRtVRRoGeJypYfsko-0AEnj-tMhblu2MlMY3CJU9CcxyQig0q370DeeteTLT2fAQcf7bBy7tsMC1h28wR2chSwYAX7BI68-"/>
+</div>
+<div class="fixed bottom-12 right-12 w-80 h-48 rounded-xl overflow-hidden opacity-10 hidden xl:block grayscale hover:grayscale-0 transition-all duration-700">
+<img class="w-full h-full object-cover" data-alt="Wide aerial perspective of rolling green farmland hills and geometric crop patterns under a soft overcast sky with misty atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUnjVAOJQ_s-zRs-CCPtO49sKWohSeysAQnUPn8_48dZIaRxJ6otw8ajTtBVk5wNta_LYknYzlIw7TK9gKSB0klIwZ3WR0nnqer5AIqSbg94BjitAzxpNkAeeMVZzUDntAufpuZVd7n31SM1Pm9fQZ7PBYk_NcrYdPznEvH3XXadYpwS8joNoobBjI10I1ZFjJgayzyIGP5d708q3SN6h8nOSZDjF3TEjfBkVb21pTElSjAMSUryOMuAkX2E_6-Zy256iUcRKerCFP"/>
+</div>
+</body></html>

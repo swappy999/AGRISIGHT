@@ -1,0 +1,3 @@
+@echo off
+echo Starting AgriSight Frontend...
+npm run dev
