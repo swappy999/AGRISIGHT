@@ -9,7 +9,7 @@ import { useTranslation, Language } from "@/context/LanguageContext";
 
 export default function LoginPage() {
   const { t, language, setLanguage } = useTranslation();
-  const { user, isVerified, refreshSession, loginAsDemo, signInWithGoogle } = useAuth();
+  const { user, isVerified, refreshSession, signInWithGoogle, signInAsGuest } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -26,9 +26,8 @@ export default function LoginPage() {
     }
   }, [user, isVerified, router]);
 
-  const handleDemoAccess = () => {
-    setLoading(true);
-    loginAsDemo("Farmer Ravi", "farmer.ravi@agrisight.com");
+  const handleGuestLogin = () => {
+    signInAsGuest();
     router.push("/dashboard");
   };
 
@@ -59,36 +58,32 @@ export default function LoginPage() {
             ? "নেটওয়ার্ক ত্রুটি। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ চেক করুন।"
             : "Network error. Please check your internet connection and try again."
         );
-      } else {
+      } else if (msg.includes("provider is not enabled") || msg.includes("unsupported provider")) {
         setError(
           language === "hi"
-            ? "Google साइन-इन विफल रहा। कृपया पुनः प्रयास करें।"
+            ? "Supabase में Google प्रदाता सक्षम नहीं है। कृपया Supabase डैशबोर्ड में Authentication > Providers > Google को चालू करें।"
             : language === "bn"
-            ? "Google সাইন-ইন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।"
-            : "Google sign-in could not be completed. Please try again."
+            ? "Supabase-এ Google প্রদানকারী সক্রিয় করা নেই। অনুগ্রহ করে Supabase ড্যাশবোর্ডে Authentication > Providers > Google সক্রিয় করুন।"
+            : "Google sign-in is not enabled in your Supabase project. Please enable Google under Authentication > Providers in your Supabase Dashboard."
+        );
+      } else {
+        setError(
+          error.message ||
+            (language === "hi"
+              ? "Google साइन-इन विफल रहा। कृपया पुनः प्रयास करें।"
+              : language === "bn"
+              ? "Google সাইন-ইন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।"
+              : "Google sign-in could not be completed. Please try again.")
         );
       }
       setGoogleLoading(false);
     }
-    // On success: browser redirects to Google → Supabase → /auth/callback
-    // No manual setLoading(false) needed — page will unload
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    // Local/demo bypass
-    if (
-      email.toLowerCase().includes("farmer") ||
-      email.toLowerCase().includes("demo") ||
-      email.toLowerCase().includes("test")
-    ) {
-      loginAsDemo("Farmer Ravi", email);
-      router.push("/dashboard");
-      return;
-    }
 
     try {
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -240,9 +235,26 @@ export default function LoginPage() {
                     fill="#EA4335"
                   />
                 </svg>
-                {t("continueWithGoogle")}
+            {t("continueWithGoogle")}
               </>
             )}
+          </button>
+
+          {/* Guest Access Button */}
+          <button
+            id="btn-guest-login"
+            type="button"
+            onClick={handleGuestLogin}
+            className="w-full py-3.5 bg-primary/10 border-2 border-primary/25 text-primary font-bold rounded-xl shadow-sm hover:bg-primary/15 active:scale-[0.98] transition-all outline-none focus:ring-4 focus:ring-primary/20 flex items-center justify-center gap-2.5 text-[15px]"
+          >
+            <span className="material-symbols-outlined text-xl">person_outline</span>
+            <span>
+              {language === "hi"
+                ? "अतिथि के रूप में जारी रखें (Guest Mode)"
+                : language === "bn"
+                ? "গেস্ট হিসেবে প্রবেশ করুন (Guest Mode)"
+                : "Sign in as Guest (Instant Preview)"}
+            </span>
           </button>
 
           {/* Divider */}
@@ -323,17 +335,6 @@ export default function LoginPage() {
                   <span className="material-symbols-outlined text-xl">login</span>
                 </>
               )}
-            </button>
-
-            <button
-              id="btn-demo-access"
-              type="button"
-              onClick={handleDemoAccess}
-              disabled={loading || googleLoading}
-              className="w-full py-3.5 bg-surface-container text-on-surface-variant font-bold rounded-xl hover:bg-surface-container-high hover:text-on-surface active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm border border-outline-variant/30 disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-base">verified_user</span>
-              {t("demoAccess")}
             </button>
           </form>
 

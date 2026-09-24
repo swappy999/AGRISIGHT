@@ -5,6 +5,7 @@
 .env.*
 !.env.example
 !.env.*.example
+client_secret_*.json
 
 # ── Python / FastAPI backend ──────────────────────────────────────
 __pycache__/

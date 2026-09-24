@@ -5,17 +5,24 @@ import os
 from app.core.config import settings
 from app.core.logging import logger
 from app.utils.exceptions import global_exception_handler, AppBaseException
-from app.api.routes import auth, analysis, notifications, crops, assistant, fields, interventions, risk, intelligence, officer, expert
+from app.api.routes import auth, analysis, notifications, crops, assistant, fields, interventions, risk, intelligence, officer, expert, tts
 from app.api.routes.analysis import ensure_bucket_exists
 from app.db.supabase import get_supabase
 
 def get_application() -> FastAPI:
     app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
 
+    # Configure CORS: support environment domains + native mobile schemes
+    raw_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()] if settings.CORS_ORIGINS else ["*"]
+    if "*" not in raw_origins:
+        for native_o in ["https://localhost", "capacitor://localhost", "http://localhost"]:
+            if native_o not in raw_origins:
+                raw_origins.append(native_o)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_origin_regex=r".*",
+        allow_origins=raw_origins,
+        allow_origin_regex=r".*" if "*" in raw_origins else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -37,6 +44,7 @@ def get_application() -> FastAPI:
     app.include_router(expert.router)
     app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
     app.include_router(assistant.router, tags=["assistant"])
+    app.include_router(tts.router, tags=["tts"])
 
     # Serve uploaded scan photos locally
     uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
@@ -46,7 +54,7 @@ def get_application() -> FastAPI:
     @app.get("/ping")
     @app.get("/health")
     async def health_check():
-        return {"status": "success", "data": "pong", "error": None}
+        return {"status": "ok", "service": "agrisight-api", "version": settings.VERSION}
 
     @app.on_event("startup")
     async def startup_event():
@@ -61,3 +69,8 @@ def get_application() -> FastAPI:
     return app
 
 app = get_application()
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", settings.PORT))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)

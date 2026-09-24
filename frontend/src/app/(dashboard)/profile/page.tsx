@@ -4,7 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "@/context/LanguageContext";
 import { Language, LANGUAGE_CONFIG } from "@/translations";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
 
 const NOTIF_PREFS_KEY = "agrisight_notif_prefs";
 
@@ -17,11 +18,30 @@ function loadPrefs() {
 }
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, profile, isVerified, logout, updateProfile, checkUsernameAvailable } = useAuth();
   const { t, language, setLanguage } = useTranslation();
   const router = useRouter();
+
+  // Notification prefs
   const [prefs, setPrefs] = useState(() => loadPrefs());
   const [prefsSaved, setPrefsSaved] = useState(false);
+
+  // Profile edit state
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync profile details when loaded
+  useEffect(() => {
+    if (profile) {
+      setFullName(profile.fullName || "");
+      setUsername(profile.username || "");
+    }
+  }, [profile]);
 
   const handleLogout = async () => {
     await logout();
@@ -34,6 +54,71 @@ export default function ProfilePage() {
     localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(updated));
     setPrefsSaved(true);
     setTimeout(() => setPrefsSaved(false), 2000);
+  };
+
+  const handleUsernameChange = (val: string) => {
+    const cleaned = val.replace(/\s+/g, "");
+    setUsername(cleaned);
+    setProfileMessage(null);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    if (!cleaned) {
+      setUsernameStatus("idle");
+      return;
+    }
+
+    // If unchanged from current profile username, it's valid
+    if (profile?.username && cleaned.toLowerCase() === profile.username.toLowerCase()) {
+      setUsernameStatus("available");
+      return;
+    }
+
+    const clean = cleaned.trim();
+    if (clean.length < 3 || clean.length > 20 || !/^[a-zA-Z0-9_]+$/.test(clean)) {
+      setUsernameStatus("invalid");
+      return;
+    }
+
+    setUsernameStatus("checking");
+    debounceTimerRef.current = setTimeout(async () => {
+      const isAvailable = await checkUsernameAvailable(clean);
+      setUsernameStatus(isAvailable ? "available" : "taken");
+    }, 400);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim()) return;
+
+    if (username && usernameStatus === "taken") {
+      setProfileMessage({ type: "error", text: t("usernameTaken") });
+      return;
+    }
+
+    if (username && usernameStatus === "invalid") {
+      setProfileMessage({ type: "error", text: t("usernameInvalid") });
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileMessage(null);
+
+    const { error } = await updateProfile({
+      fullName: fullName.trim(),
+      username: username ? username.trim().toLowerCase() : undefined,
+    });
+
+    setProfileSaving(false);
+
+    if (error) {
+      setProfileMessage({ type: "error", text: error.message || t("profileUpdateFailed") });
+    } else {
+      setProfileMessage({ type: "success", text: t("profileUpdated") });
+      setTimeout(() => setProfileMessage(null), 3500);
+    }
   };
 
   const formattedDate = user?.created_at
@@ -63,29 +148,175 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
-        {/* Account Info */}
-        <div className="bg-surface-container-low p-8 lg:p-12 rounded-[2.5rem] shadow-sm border border-outline-variant/10 space-y-8 group">
+        {/* Account Info & Profile Form */}
+        <div className="bg-surface-container-low p-8 lg:p-12 rounded-[2.5rem] shadow-sm border border-outline-variant/10 space-y-8">
           <div className="space-y-5">
-            <h2 className="text-xl font-extrabold text-on-surface tracking-tight flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-3xl">person</span>
-              {t("accountStatus")}
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-extrabold text-on-surface tracking-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-3xl">person</span>
+                {t("accountStatus")}
+              </h2>
+              {/* Verification status badge */}
+              <div
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                  isVerified
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                    : "bg-amber-100 text-amber-800 border border-amber-200"
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {isVerified ? "verified" : "warning"}
+                </span>
+                <span>{isVerified ? t("verifiedAccount") : t("unverifiedAccount")}</span>
+              </div>
+            </div>
+
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-2xl lg:text-3xl font-extrabold shadow-inner border border-outline-variant/20 group-hover:scale-105 transition-transform shrink-0">
-                {user?.email?.charAt(0).toUpperCase() || "A"}
+              <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-2xl lg:text-3xl font-extrabold shadow-inner border border-outline-variant/20 shrink-0">
+                {profile?.fullName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "A"}
               </div>
               <div className="min-w-0">
                 <p className="text-lg lg:text-xl font-extrabold text-on-surface truncate">
-                  {user?.email}
+                  {profile?.fullName || user?.email}
                 </p>
-                <p className="text-on-surface-variant font-medium opacity-70 text-sm">
-                  {t("memberSince", { date: formattedDate })}
+                {profile?.username && (
+                  <p className="text-primary font-bold text-sm">
+                    @{profile.username}
+                  </p>
+                )}
+                <p className="text-on-surface-variant font-medium opacity-70 text-xs">
+                  {user?.email} • {t("memberSince", { date: formattedDate })}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
+          {/* Edit Profile Form */}
+          <div className="pt-2 border-t border-outline-variant/20 space-y-4">
+            <h3 className="text-lg font-extrabold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-xl">edit</span>
+              {t("editProfile")}
+            </h3>
+
+            {profileMessage && (
+              <div
+                className={`p-3.5 rounded-xl text-sm font-bold flex items-center gap-2 border ${
+                  profileMessage.type === "success"
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    : "bg-error-container text-on-error-container border-error/20"
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">
+                  {profileMessage.type === "success" ? "check_circle" : "error"}
+                </span>
+                <span>{profileMessage.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor="profile-fullname" className="text-xs font-bold text-on-surface ml-1">
+                  {t("fullName")}
+                </label>
+                <input
+                  id="profile-fullname"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-4 py-3 bg-surface-container border border-outline-variant/40 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-sm font-semibold text-on-surface transition-all"
+                  placeholder="Farmer Ravi"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="profile-username" className="text-xs font-bold text-on-surface ml-1">
+                  {t("username")}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-on-surface-variant text-sm select-none">
+                    @
+                  </span>
+                  <input
+                    id="profile-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => handleUsernameChange(e.target.value)}
+                    maxLength={20}
+                    autoCapitalize="none"
+                    spellCheck="false"
+                    className={`w-full pl-8 pr-10 py-3 bg-surface-container border rounded-xl outline-none text-sm font-semibold text-on-surface transition-all ${
+                      usernameStatus === "available"
+                        ? "border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                        : usernameStatus === "taken" || usernameStatus === "invalid"
+                        ? "border-error focus:ring-2 focus:ring-error/20"
+                        : "border-outline-variant/40 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    }`}
+                    placeholder="kisan_ravi"
+                  />
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                    {usernameStatus === "checking" && (
+                      <span className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    )}
+                    {usernameStatus === "available" && (
+                      <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
+                    )}
+                    {(usernameStatus === "taken" || usernameStatus === "invalid") && (
+                      <span className="material-symbols-outlined text-error text-lg">cancel</span>
+                    )}
+                  </div>
+                </div>
+
+                {usernameStatus !== "idle" && (
+                  <p className="text-xs px-1 font-medium">
+                    {usernameStatus === "checking" && (
+                      <span className="text-primary">{t("usernameChecking")}</span>
+                    )}
+                    {usernameStatus === "available" && (
+                      <span className="text-emerald-600 font-bold">{t("usernameAvailable")}</span>
+                    )}
+                    {usernameStatus === "taken" && (
+                      <span className="text-error font-bold">{t("usernameTaken")}</span>
+                    )}
+                    {usernameStatus === "invalid" && (
+                      <span className="text-error">{t("usernameInvalid")}</span>
+                    )}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  id="btn-save-profile"
+                  type="submit"
+                  disabled={profileSaving || usernameStatus === "checking" || usernameStatus === "taken" || usernameStatus === "invalid"}
+                  className="px-6 py-3 bg-primary text-on-primary font-bold rounded-xl shadow-md hover:bg-primary-hover active:scale-95 transition-all text-sm outline-none focus:ring-4 focus:ring-primary/20 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {profileSaving ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{t("saveProfile")}</span>
+                      <span className="material-symbols-outlined text-lg">save</span>
+                    </>
+                  )}
+                </button>
+
+                <Link
+                  href="/forgot-password"
+                  className="px-5 py-3 bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-bold rounded-xl transition-all text-sm flex items-center gap-1.5 border border-outline-variant/30"
+                >
+                  <span className="material-symbols-outlined text-lg">lock_reset</span>
+                  <span>{t("changePassword")}</span>
+                </Link>
+              </div>
+            </form>
+          </div>
+
+          <div className="space-y-3 pt-2">
             <div className="flex justify-between items-center bg-surface-container p-4 lg:p-5 rounded-[1.5rem] border border-outline-variant/10">
               <p className="font-bold text-on-surface text-sm">{t("dataSync")}</p>
               <div className="flex items-center gap-2 text-primary font-bold text-sm">
@@ -131,7 +362,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Notification Preferences — H9: now stored in localStorage */}
+          {/* Notification Preferences */}
           <div className="space-y-4">
             <h2 className="text-xl font-extrabold text-on-surface tracking-tight flex items-center gap-2 pt-2">
               <span className="material-symbols-outlined text-primary text-3xl">notifications</span>
@@ -174,7 +405,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* H10: Contact Support — mailto link */}
+      {/* Contact Support */}
       <div className="p-8 lg:p-10 bg-emerald-900 text-on-primary rounded-[2.5rem] flex flex-col sm:flex-row items-center gap-6 shadow-xl shadow-emerald-900/10">
         <div className="w-16 h-16 rounded-full bg-emerald-800 flex items-center justify-center text-primary-fixed-dim shrink-0">
           <span className="material-symbols-outlined text-4xl">eco</span>

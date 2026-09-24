@@ -53,16 +53,19 @@ async function safeFetch<T>(endpoint: string, options: RequestInit = {}, timeout
   const primaryUrl = getFastApiUrl();
   const candidateUrls: string[] = [primaryUrl];
   
-  if (Capacitor.isNativePlatform() || (typeof window !== "undefined" && window.location.protocol === "capacitor:")) {
-    const mobileFallbacks = ["http://127.0.0.1:8000", "http://localhost:8000", "http://192.168.1.7:8000", "http://10.0.2.2:8000"];
-    for (const fb of mobileFallbacks) {
-      if (!candidateUrls.includes(fb)) candidateUrls.push(fb);
-    }
-  } else {
-    // Web desktop fallbacks: try direct backend and proxy rewrite
-    const webFallbacks = ["http://127.0.0.1:8000", "http://localhost:8000", "/api/backend"];
-    for (const fb of webFallbacks) {
-      if (!candidateUrls.includes(fb)) candidateUrls.push(fb);
+  // In production (HTTPS), only use the configured production URL to prevent dead local IP timeouts
+  if (!primaryUrl.startsWith("https://")) {
+    if (Capacitor.isNativePlatform() || (typeof window !== "undefined" && window.location.protocol === "capacitor:")) {
+      const mobileFallbacks = ["http://127.0.0.1:8000", "http://localhost:8000", "http://192.168.1.7:8000", "http://10.0.2.2:8000"];
+      for (const fb of mobileFallbacks) {
+        if (!candidateUrls.includes(fb)) candidateUrls.push(fb);
+      }
+    } else {
+      // Web desktop fallbacks: try direct backend and proxy rewrite
+      const webFallbacks = ["http://127.0.0.1:8000", "http://localhost:8000", "/api/backend"];
+      for (const fb of webFallbacks) {
+        if (!candidateUrls.includes(fb)) candidateUrls.push(fb);
+      }
     }
   }
 
@@ -443,10 +446,10 @@ export const api = {
   },
 
   // ── AI Assistant (M10, M11, M12) ─────────────────────────────────────────
-  async assistantChat(message: string, language: string = "en") {
+  async assistantChat(message: string, language: string = "en", fieldId?: string) {
     logAndroidAI("Sending Query", {
       language,
-      status: "Dispatching prompt to backend",
+      status: `Dispatching prompt to backend${fieldId ? ` for field ${fieldId}` : ""}`,
     });
 
     try {
@@ -463,7 +466,7 @@ export const api = {
         {
           method: "POST",
           headers: await getAuthHeaders(),
-          body: JSON.stringify({ message, language }),
+          body: JSON.stringify({ message, language, field_id: fieldId || "" }),
         },
         30000
       );

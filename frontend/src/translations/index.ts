@@ -59,6 +59,30 @@ export type TranslationKeys = {
   orSignInWith: string;
   signupWelcome: string;
   signupSubtext: string;
+  confirmPassword: string;
+  alreadyHaveAccount: string;
+  // Username & Onboarding
+  username: string;
+  chooseUsername: string;
+  usernameHint: string;
+  usernameChecking: string;
+  usernameAvailable: string;
+  usernameTaken: string;
+  usernameInvalid: string;
+  usernameRequired: string;
+  onboardingTitle: string;
+  onboardingSubtext: string;
+  onboardingContinue: string;
+  onboardingSkip: string;
+  // Profile Edit
+  editProfile: string;
+  fullName: string;
+  saveProfile: string;
+  profileUpdated: string;
+  profileUpdateFailed: string;
+  changePassword: string;
+  verifiedAccount: string;
+  unverifiedAccount: string;
 
   // Upload & Scan
   uploadTitle: string;
@@ -444,6 +468,75 @@ export type TranslationKeys = {
   unhealthyCareStep1: string;
   unhealthyCareStep2: string;
   unhealthyCareStep3: string;
+
+  // Field-Centric MVP (§1-51 of master prompt)
+  myFields: string;
+  addFieldGuided: string;
+  fieldSetupStep1: string;
+  fieldSetupStep2: string;
+  fieldSetupStep3: string;
+  fieldReady: string;
+  fieldNamePlaceholder: string;
+  fieldAreaLabel: string;
+  fieldLocationLabel: string;
+  useMyLocation: string;
+  selectOnMap: string;
+  whatAreYouGrowing: string;
+  cropVarietyOptional: string;
+  whenDidYouPlant: string;
+  skipForNow: string;
+  connectFieldNode: string;
+  fieldNodeDescription: string;
+  attachToField: string;
+  openField: string;
+  fieldHealth: string;
+  fieldHealthGood: string;
+  fieldHealthAttention: string;
+  fieldHealthCritical: string;
+  fieldHealthNoData: string;
+  waitingForFieldData: string;
+  fieldConditions: string;
+  soilMoisture: string;
+  temperature: string;
+  humidity: string;
+  soilPh: string;
+  waterFlow: string;
+  notAvailable: string;
+  scanLeafCta: string;
+  checkCropHealth: string;
+  agriSightInsight: string;
+  fieldNodeConnected: string;
+  fieldNodeOffline: string;
+  fieldNodeNotAttached: string;
+  fieldNodeLastUpdate: string;
+  fieldNodeTroubleshoot: string;
+  viewSensors: string;
+  recentScans: string;
+  fieldHistory: string;
+  fieldAnalytics: string;
+  recommendations: string;
+  askAboutThisField: string;
+  whichFieldIsThis: string;
+  cropCheckResult: string;
+  whyThisWasFlagged: string;
+  viewRecommendation: string;
+  compareWithPreviousScan: string;
+  scanSavedToField: string;
+  fieldNodeSectionTitle: string;
+  sensorsDetected: string;
+  noSensorData: string;
+  yourFieldCanStillBeUsed: string;
+  farmOverview: string;
+  connectedFieldNodes: string;
+  continueSetup: string;
+  setupComplete: string;
+  scanFromField: string;
+  addCropToField: string;
+  noCropLinked: string;
+  fieldStage: string;
+  noFieldNodeYet: string;
+  connectYourFieldNode: string;
+  manageMore: string;
 };
 
 export const translations: Record<Language, TranslationKeys> = {
@@ -473,6 +566,8 @@ export const translations: Record<Language, TranslationKeys> = {
     orSignInWith: "or sign in with email",
     signupWelcome: "Create Account",
     signupSubtext: "Join the AgriSight community today",
+    confirmPassword: "Confirm Password",
+    alreadyHaveAccount: "Already have an account?",
 
     uploadTitle: "Upload Leaf Image",
     analyzingTitle: "Analyzing your crop...",
@@ -846,6 +941,97 @@ export const translations: Record<Language, TranslationKeys> = {
     unhealthyCareStep1: "Inspect nearby plants for early spread",
     unhealthyCareStep2: "Remove severely affected leaves to reduce inoculum",
     unhealthyCareStep3: "Follow appropriate IPM and protective spray guidance",
+    // Username & Onboarding
+    username: "Username",
+    chooseUsername: "Choose your username",
+    usernameHint: "3–20 characters, letters, numbers and underscores only",
+    usernameChecking: "Checking availability...",
+    usernameAvailable: "Username is available!",
+    usernameTaken: "This username is already taken.",
+    usernameInvalid: "Only letters, numbers, and underscores (3–20 characters).",
+    usernameRequired: "Please enter a username to continue.",
+    onboardingTitle: "Almost there!",
+    onboardingSubtext: "Create a unique username for your AgriSight profile.",
+    onboardingContinue: "Save & Continue",
+    onboardingSkip: "Skip for now",
+    // Profile Edit
+    editProfile: "Edit Profile",
+    fullName: "Full Name",
+    saveProfile: "Save Profile",
+    profileUpdated: "Profile updated successfully!",
+    profileUpdateFailed: "Failed to update profile. Please try again.",
+    changePassword: "Change Password",
+    verifiedAccount: "Verified Account",
+    unverifiedAccount: "Unverified — check your email",
+
+    // Field-Centric MVP
+    myFields: "My Fields",
+    addFieldGuided: "Add Field",
+    fieldSetupStep1: "Create Your Field",
+    fieldSetupStep2: "What Are You Growing?",
+    fieldSetupStep3: "Connect Your Field Node",
+    fieldReady: "Your Field Is Ready",
+    fieldNamePlaceholder: "e.g. North Field",
+    fieldAreaLabel: "How large is it?",
+    fieldLocationLabel: "Where is it?",
+    useMyLocation: "Use My Location",
+    selectOnMap: "Select on Map",
+    whatAreYouGrowing: "What are you growing here?",
+    cropVarietyOptional: "Crop variety (optional)",
+    whenDidYouPlant: "When did you plant it?",
+    skipForNow: "Skip for now",
+    connectFieldNode: "Connect Your Field Node",
+    fieldNodeDescription: "Your Field Node can monitor soil and environmental conditions.",
+    attachToField: "Attach to Field",
+    openField: "Open Field",
+    fieldHealth: "Field Health",
+    fieldHealthGood: "Good",
+    fieldHealthAttention: "Attention",
+    fieldHealthCritical: "Critical",
+    fieldHealthNoData: "No Data",
+    waitingForFieldData: "Waiting for enough field data",
+    fieldConditions: "Field Conditions",
+    soilMoisture: "Soil Moisture",
+    temperature: "Temperature",
+    humidity: "Humidity",
+    soilPh: "Soil pH",
+    waterFlow: "Water Flow",
+    notAvailable: "Not available",
+    scanLeafCta: "Scan Leaf",
+    checkCropHealth: "Check your crop health",
+    agriSightInsight: "AgriSight Insight",
+    fieldNodeConnected: "Connected",
+    fieldNodeOffline: "Offline",
+    fieldNodeNotAttached: "No Field Node attached",
+    fieldNodeLastUpdate: "Last update",
+    fieldNodeTroubleshoot: "Troubleshoot",
+    viewSensors: "View Sensors",
+    recentScans: "Recent Scans",
+    fieldHistory: "Field History",
+    fieldAnalytics: "Field Analytics",
+    recommendations: "Recommendations",
+    askAboutThisField: "Ask AgriSight about this field",
+    whichFieldIsThis: "Which field is this from?",
+    cropCheckResult: "Crop Check",
+    whyThisWasFlagged: "Why This Was Flagged",
+    viewRecommendation: "View Recommendation",
+    compareWithPreviousScan: "Compare With Previous Scan",
+    scanSavedToField: "Scan saved to field",
+    fieldNodeSectionTitle: "Field Node",
+    sensorsDetected: "Sensors detected",
+    noSensorData: "No sensor data available",
+    yourFieldCanStillBeUsed: "Your field can still be used. Some live sensor readings are unavailable.",
+    farmOverview: "Farm Overview",
+    connectedFieldNodes: "Connected Field Nodes",
+    continueSetup: "Continue",
+    setupComplete: "Setup Complete",
+    scanFromField: "Scan Leaf",
+    addCropToField: "Add Crop",
+    noCropLinked: "No crop linked yet",
+    fieldStage: "Stage",
+    noFieldNodeYet: "No Field Node connected",
+    connectYourFieldNode: "Connect your Field Node to monitor soil and weather.",
+    manageMore: "More Details",
   },
   hi: {
     home: "होम",
@@ -873,6 +1059,8 @@ export const translations: Record<Language, TranslationKeys> = {
     orSignInWith: "या ईमेल से साइन इन करें",
     signupWelcome: "खाता बनाएं",
     signupSubtext: "आज ही एग्रीसाइट समुदाय में शामिल हों",
+    confirmPassword: "पासवर्ड की पुष्टि करें",
+    alreadyHaveAccount: "क्या पहले से एक खाता है?",
 
     uploadTitle: "पत्ती की तस्वीर अपलोड करें",
     analyzingTitle: "आपकी फसल का विश्लेषण हो रहा है...",
@@ -1246,6 +1434,97 @@ export const translations: Record<Language, TranslationKeys> = {
     unhealthyCareStep1: "आसपास के पौधों में रोग के प्रसार की जांच करें",
     unhealthyCareStep2: "संक्रमण कम करने के लिए अत्यधिक प्रभावित पत्तियां काटें",
     unhealthyCareStep3: "उचित एकीकृत कीट प्रबंधन (IPM) का पालन करें",
+    // Username & Onboarding
+    username: "उपयोगकर्ता नाम",
+    chooseUsername: "अपना उपयोगकर्ता नाम चुनें",
+    usernameHint: "3–20 वर्ण, केवल अक्षर, संख्याएं और अंडरस्कोर",
+    usernameChecking: "उपलब्धता जांची जा रही है...",
+    usernameAvailable: "उपयोगकर्ता नाम उपलब्ध है!",
+    usernameTaken: "यह उपयोगकर्ता नाम पहले से लिया गया है।",
+    usernameInvalid: "केवल अक्षर, संख्याएं और अंडरस्कोर (3–20 वर्ण)।",
+    usernameRequired: "आगे बढ़ने के लिए उपयोगकर्ता नाम दर्ज करें।",
+    onboardingTitle: "बस एक कदम दूर!",
+    onboardingSubtext: "अपनी AgriSight प्रोफ़ाइल के लिए एक अनूठा उपयोगकर्ता नाम बनाएं।",
+    onboardingContinue: "सहेजें और आगे बढ़ें",
+    onboardingSkip: "अभी छोड़ें",
+    // Profile Edit
+    editProfile: "प्रोफ़ाइल संपादित करें",
+    fullName: "पूरा नाम",
+    saveProfile: "प्रोफ़ाइल सहेजें",
+    profileUpdated: "प्रोफ़ाइल सफलतापूर्वक अपडेट की गई!",
+    profileUpdateFailed: "प्रोफ़ाइल अपडेट करने में विफल। कृपया पुनः प्रयास करें।",
+    changePassword: "पासवर्ड बदलें",
+    verifiedAccount: "सत्यापित खाता",
+    unverifiedAccount: "असत्यापित — अपना ईमेल जांचें",
+
+    // Field-Centric MVP
+    myFields: "मेरे खेत",
+    addFieldGuided: "खेत जोड़ें",
+    fieldSetupStep1: "अपना खेत बनाएं",
+    fieldSetupStep2: "आप यहां क्या उगा रहे हैं?",
+    fieldSetupStep3: "फील्ड नोड कनेक्ट करें",
+    fieldReady: "आपका खेत तैयार है",
+    fieldNamePlaceholder: "जैसे उत्तरी खेत",
+    fieldAreaLabel: "यह कितना बड़ा है?",
+    fieldLocationLabel: "यह कहाँ है?",
+    useMyLocation: "मेरी लोकेशन उपयोग करें",
+    selectOnMap: "मानचित्र पर चुनें",
+    whatAreYouGrowing: "आप यहां क्या उगा रहे हैं?",
+    cropVarietyOptional: "फसल किस्म (वैकल्पिक)",
+    whenDidYouPlant: "आपने कब बोया?",
+    skipForNow: "अभी छोड़ें",
+    connectFieldNode: "फील्ड नोड कनेक्ट करें",
+    fieldNodeDescription: "आपका फील्ड नोड मिट्टी और पर्यावरण की स्थिति निगरानी कर सकता है।",
+    attachToField: "खेत से जोड़ें",
+    openField: "खेत खोलें",
+    fieldHealth: "खेत स्वास्थ्य",
+    fieldHealthGood: "अच्छा",
+    fieldHealthAttention: "ध्यान दें",
+    fieldHealthCritical: "गंभीर",
+    fieldHealthNoData: "डेटा नहीं",
+    waitingForFieldData: "पर्याप्त खेत डेटा का इंतजार",
+    fieldConditions: "खेत की स्थिति",
+    soilMoisture: "मिट्टी की नमी",
+    temperature: "तापमान",
+    humidity: "आर्द्रता",
+    soilPh: "मिट्टी का pH",
+    waterFlow: "पानी का प्रवाह",
+    notAvailable: "उपलब्ध नहीं",
+    scanLeafCta: "पत्ती स्कैन करें",
+    checkCropHealth: "अपनी फसल का स्वास्थ्य जांचें",
+    agriSightInsight: "AgriSight अंतर्दृष्टि",
+    fieldNodeConnected: "कनेक्टेड",
+    fieldNodeOffline: "ऑफलाइन",
+    fieldNodeNotAttached: "कोई फील्ड नोड संलग्न नहीं",
+    fieldNodeLastUpdate: "अंतिम अपडेट",
+    fieldNodeTroubleshoot: "समस्या निवारण",
+    viewSensors: "सेंसर देखें",
+    recentScans: "हाल के स्कैन",
+    fieldHistory: "खेत इतिहास",
+    fieldAnalytics: "खेत विश्लेषण",
+    recommendations: "सिफारिशें",
+    askAboutThisField: "इस खेत के बारे में AgriSight से पूछें",
+    whichFieldIsThis: "यह किस खेत से है?",
+    cropCheckResult: "फसल जांच",
+    whyThisWasFlagged: "यह क्यों चिह्नित किया गया",
+    viewRecommendation: "सिफारिश देखें",
+    compareWithPreviousScan: "पिछले स्कैन से तुलना करें",
+    scanSavedToField: "स्कैन खेत में सहेजा गया",
+    fieldNodeSectionTitle: "फील्ड नोड",
+    sensorsDetected: "सेंसर मिले",
+    noSensorData: "कोई सेंसर डेटा उपलब्ध नहीं",
+    yourFieldCanStillBeUsed: "आपका खेत अभी भी उपयोग किया जा सकता है। कुछ लाइव सेंसर रीडिंग अनुपलब्ध हैं।",
+    farmOverview: "खेत अवलोकन",
+    connectedFieldNodes: "कनेक्टेड फील्ड नोड",
+    continueSetup: "जारी रखें",
+    setupComplete: "सेटअप पूर्ण",
+    scanFromField: "पत्ती स्कैन करें",
+    addCropToField: "फसल जोड़ें",
+    noCropLinked: "अभी तक कोई फसल नहीं जोड़ी गई",
+    fieldStage: "अवस्था",
+    noFieldNodeYet: "कोई फील्ड नोड कनेक्ट नहीं",
+    connectYourFieldNode: "मिट्टी और मौसम निगरानी के लिए अपना फील्ड नोड कनेक्ट करें।",
+    manageMore: "अधिक विवरण",
   },
   bn: {
     home: "হোম",
@@ -1273,6 +1552,8 @@ export const translations: Record<Language, TranslationKeys> = {
     orSignInWith: "বা ইমেল দিয়ে সাইন ইন করুন",
     signupWelcome: "অ্যাকাউন্ট তৈরি করুন",
     signupSubtext: "আজই এগ্রিসাইট সম্প্রদায়ে যোগ দিন",
+    confirmPassword: "পাসওয়ার্ড নিশ্চিত করুন",
+    alreadyHaveAccount: "ইতিমধ্যে একটি অ্যাকাউন্ট আছে?",
 
     uploadTitle: "পাতার ছবি আপলোড করুন",
     analyzingTitle: "আপনার ফসলের বিশ্লেষণ করা হচ্ছে...",
@@ -1646,6 +1927,97 @@ export const translations: Record<Language, TranslationKeys> = {
     unhealthyCareStep1: "আশেপাশের গাছপালায় রোগ ছড়িয়েছে কি না তা পর্যবেক্ষণ করুন",
     unhealthyCareStep2: "জীবাণু বিস্তার কমাতে অতিরিক্ত আক্রান্ত পাতা ছাঁটাই করুন",
     unhealthyCareStep3: "সঠিক আইপিএম এবং সুরক্ষামূলক বালাইনাশক নির্দেশিকা অনুসরণ করুন",
+    // Username & Onboarding
+    username: "ব্যবহারকারীর নাম",
+    chooseUsername: "আপনার ব্যবহারকারীর নাম নির্বাচন করুন",
+    usernameHint: "৩–২০টি অক্ষর, শুধুমাত্র বর্ণ, সংখ্যা এবং আন্ডারস্কোর",
+    usernameChecking: "উপলব্ধতা যাচাই করা হচ্ছে...",
+    usernameAvailable: "ব্যবহারকারীর নাম উপলব্ধ আছে!",
+    usernameTaken: "এই ব্যবহারকারীর নাম ইতিমধ্যে ব্যবহৃত হয়েছে।",
+    usernameInvalid: "শুধুমাত্র বর্ণ, সংখ্যা এবং আন্ডারস্কোর (৩–২০ অক্ষর)।",
+    usernameRequired: "চালিয়ে যেতে একটি ব্যবহারকারীর নাম লিখুন।",
+    onboardingTitle: "প্রায় সম্পন্ন!",
+    onboardingSubtext: "আপনার AgriSight প্রোফাইলের জন্য একটি অনন্য ব্যবহারকারীর নাম তৈরি করুন।",
+    onboardingContinue: "সংরক্ষণ করুন ও এগিয়ে যান",
+    onboardingSkip: "এখনই বাদ দিন",
+    // Profile Edit
+    editProfile: "প্রোফাইল সম্পাদনা করুন",
+    fullName: "পুরো নাম",
+    saveProfile: "প্রোফাইল সংরক্ষণ করুন",
+    profileUpdated: "প্রোফাইল সফলভাবে আপডেট করা হয়েছে!",
+    profileUpdateFailed: "প্রোফাইল আপডেট করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+    changePassword: "পাসওয়ার্ড পরিবর্তন করুন",
+    verifiedAccount: "যাচাইকৃত অ্যাকাউন্ট",
+    unverifiedAccount: "অযাচাইকৃত — আপনার ইমেল পরীক্ষা করুন",
+
+    // Field-Centric MVP
+    myFields: "আমার জমি",
+    addFieldGuided: "জমি যোগ করুন",
+    fieldSetupStep1: "আপনার জমি তৈরি করুন",
+    fieldSetupStep2: "আপনি এখানে কী ফলাচ্ছেন?",
+    fieldSetupStep3: "ফিল্ড নোড সংযুক্ত করুন",
+    fieldReady: "আপনার জমি প্রস্তুত",
+    fieldNamePlaceholder: "যেমন উত্তর জমি",
+    fieldAreaLabel: "এটি কতটুকু বড়?",
+    fieldLocationLabel: "এটি কোথায়?",
+    useMyLocation: "আমার অবস্থান ব্যবহার করুন",
+    selectOnMap: "মানচিত্রে নির্বাচন করুন",
+    whatAreYouGrowing: "আপনি এখানে কী ফলাচ্ছেন?",
+    cropVarietyOptional: "ফসলের জাত (ঐচ্ছিক)",
+    whenDidYouPlant: "আপনি কখন রোপণ করেছেন?",
+    skipForNow: "এখন বাদ দিন",
+    connectFieldNode: "ফিল্ড নোড সংযুক্ত করুন",
+    fieldNodeDescription: "আপনার ফিল্ড নোড মাটি ও পরিবেশের অবস্থা পর্যবেক্ষণ করতে পারে।",
+    attachToField: "জমিতে সংযুক্ত করুন",
+    openField: "জমি খুলুন",
+    fieldHealth: "জমির স্বাস্থ্য",
+    fieldHealthGood: "ভালো",
+    fieldHealthAttention: "মনোযোগ প্রয়োজন",
+    fieldHealthCritical: "সংকটজনক",
+    fieldHealthNoData: "ডেটা নেই",
+    waitingForFieldData: "যথেষ্ট জমির ডেটার জন্য অপেক্ষা করছে",
+    fieldConditions: "জমির অবস্থা",
+    soilMoisture: "মাটির আর্দ্রতা",
+    temperature: "তাপমাত্রা",
+    humidity: "আর্দ্রতা",
+    soilPh: "মাটির pH",
+    waterFlow: "পানির প্রবাহ",
+    notAvailable: "পাওয়া যাচ্ছে না",
+    scanLeafCta: "পাতা স্ক্যান করুন",
+    checkCropHealth: "আপনার ফসলের স্বাস্থ্য পরীক্ষা করুন",
+    agriSightInsight: "AgriSight অন্তর্দৃষ্টি",
+    fieldNodeConnected: "সংযুক্ত",
+    fieldNodeOffline: "অফলাইন",
+    fieldNodeNotAttached: "কোনো ফিল্ড নোড সংযুক্ত নেই",
+    fieldNodeLastUpdate: "শেষ আপডেট",
+    fieldNodeTroubleshoot: "সমস্যা সমাধান",
+    viewSensors: "সেন্সর দেখুন",
+    recentScans: "সাম্প্রতিক স্ক্যান",
+    fieldHistory: "জমির ইতিহাস",
+    fieldAnalytics: "জমির বিশ্লেষণ",
+    recommendations: "পরামর্শ",
+    askAboutThisField: "এই জমি সম্পর্কে AgriSight-কে জিজ্ঞাসা করুন",
+    whichFieldIsThis: "এটি কোন জমি থেকে?",
+    cropCheckResult: "ফসল পরীক্ষা",
+    whyThisWasFlagged: "এটি কেন চিহ্নিত হয়েছে",
+    viewRecommendation: "পরামর্শ দেখুন",
+    compareWithPreviousScan: "আগের স্ক্যানের সাথে তুলনা করুন",
+    scanSavedToField: "স্ক্যান জমিতে সংরক্ষিত হয়েছে",
+    fieldNodeSectionTitle: "ফিল্ড নোড",
+    sensorsDetected: "সেন্সর পাওয়া গেছে",
+    noSensorData: "কোনো সেন্সর ডেটা পাওয়া যাচ্ছে না",
+    yourFieldCanStillBeUsed: "আপনার জমি এখনও ব্যবহার করা যাবে। কিছু লাইভ সেন্সর রিডিং পাওয়া যাচ্ছে না।",
+    farmOverview: "খামার সংক্ষিপ্ত চিত্র",
+    connectedFieldNodes: "সংযুক্ত ফিল্ড নোড",
+    continueSetup: "চালিয়ে যান",
+    setupComplete: "সেটআপ সম্পন্ন",
+    scanFromField: "পাতা স্ক্যান করুন",
+    addCropToField: "ফসল যোগ করুন",
+    noCropLinked: "এখনো কোনো ফসল যুক্ত করা হয়নি",
+    fieldStage: "পর্যায়",
+    noFieldNodeYet: "কোনো ফিল্ড নোড সংযুক্ত নেই",
+    connectYourFieldNode: "মাটি ও আবহাওয়া পর্যবেক্ষণের জন্য আপনার ফিল্ড নোড সংযুক্ত করুন।",
+    manageMore: "আরও বিবরণ",
   },
 };
 

@@ -1,36 +1,55 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Network } from "@capacitor/network";
 import { useTranslation } from "@/context/LanguageContext";
 
 export function NetworkStatusBar() {
   const { language } = useTranslation();
-  const [isOnline, setIsOnline] = useState(() => (typeof window !== "undefined" ? navigator.onLine : true));
+  const [isOnline, setIsOnline] = useState(true);
   const [showReconnected, setShowReconnected] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    let removeListener: (() => void) | null = null;
 
-    const handleOnline = () => {
-      setIsOnline(true);
-      setShowReconnected(true);
-      const timer = setTimeout(() => {
-        setShowReconnected(false);
-      }, 4000);
-      return () => clearTimeout(timer);
+    const handleStatus = (connected: boolean) => {
+      setIsOnline((prev) => {
+        if (!prev && connected) {
+          setShowReconnected(true);
+          setTimeout(() => setShowReconnected(false), 4000);
+        }
+        return connected;
+      });
     };
 
-    const handleOffline = () => {
-      setIsOnline(false);
-      setShowReconnected(false);
-    };
+    if (Capacitor.isNativePlatform()) {
+      Network.getStatus().then((status) => {
+        setIsOnline(status.connected);
+      });
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+      Network.addListener("networkStatusChange", (status) => {
+        handleStatus(status.connected);
+      }).then((handle) => {
+        removeListener = () => handle.remove();
+      });
+    } else if (typeof window !== "undefined") {
+      setIsOnline(navigator.onLine);
+
+      const onOnline = () => handleStatus(true);
+      const onOffline = () => handleStatus(false);
+
+      window.addEventListener("online", onOnline);
+      window.addEventListener("offline", onOffline);
+
+      removeListener = () => {
+        window.removeEventListener("online", onOnline);
+        window.removeEventListener("offline", onOffline);
+      };
+    }
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      if (removeListener) removeListener();
     };
   }, []);
 

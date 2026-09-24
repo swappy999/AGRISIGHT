@@ -81,10 +81,21 @@ async def assistant_chat(payload: AssistantChatRequest, user: dict = Depends(rat
     except Exception:
         interventions = local_db.list_interventions(user_id)
 
+    # If field_id is passed, prioritize that field at top of context
+    if getattr(payload, "field_id", None):
+        target_f = next((f for f in fields if f.get("id") == payload.field_id or f.get("name") == payload.field_id), None)
+        if not target_f:
+            try:
+                target_f = local_db.get_field(payload.field_id, user_id)
+            except Exception:
+                pass
+        if target_f:
+            fields = [target_f] + [f for f in fields if f.get("id") != target_f.get("id")]
+
     logger.info(
         f"Assistant chat — user={user_id}, crops={len(crops)}, "
         f"fields={len(fields)}, scans={len(analyses)}, "
-        f"interventions={len(interventions)}, lang={payload.language}"
+        f"interventions={len(interventions)}, lang={payload.language}, field_id={payload.field_id}"
     )
 
     try:

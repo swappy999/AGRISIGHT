@@ -324,6 +324,8 @@ function ThinkingBubble() {
 function AssistantContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q");
+  const fieldId = searchParams.get("fieldId") || searchParams.get("field_id");
+  const [fieldName, setFieldName] = useState<string | null>(null);
   const handledInitialQuery = useRef(false);
 
   const { t, language, setLanguage } = useTranslation();
@@ -341,9 +343,40 @@ function AssistantContent() {
   const speech = useSpeechInput(language);
   const tts = useSpeechOutput(language);
 
-  // Dynamic suggested prompts
-  const suggestedQuestions =
-    language === "bn"
+  // Fetch field name if fieldId is present
+  useEffect(() => {
+    if (fieldId) {
+      api.getField(fieldId)
+        .then((f) => {
+          if (f?.name) setFieldName(f.name);
+        })
+        .catch(() => {});
+    }
+  }, [fieldId]);
+
+  // Dynamic suggested prompts (field-aware)
+  const suggestedQuestions = fieldId
+    ? language === "bn"
+      ? [
+          { icon: "analytics", text: `এই জমির মাটির আর্দ্রতা ও পুষ্টি কেমন?`, category: "Field Soil" },
+          { icon: "coronavirus", text: `এই জমিতে কোনো রোগের ঝুঁকি আছে কি?`, category: "Field Risk" },
+          { icon: "water_drop", text: `এই জমিতে কি আজ সেচ দেওয়া প্রয়োজন?`, category: "Irrigation" },
+          { icon: "checklist", text: `এই জমির জন্য প্রধান কৃষি পদক্ষেপ কী?`, category: "Actions" },
+        ]
+      : language === "hi"
+      ? [
+          { icon: "analytics", text: `इस खेत की मिट्टी की नमी और पोषण कैसा है?`, category: "Field Soil" },
+          { icon: "coronavirus", text: `क्या इस खेत में किसी रोग का खतरा है?`, category: "Field Risk" },
+          { icon: "water_drop", text: `क्या इस खेत में आज सिंचाई करनी चाहिए?`, category: "Irrigation" },
+          { icon: "checklist", text: `इस खेत के लिए मुख्य कदम क्या हैं?`, category: "Actions" },
+        ]
+      : [
+          { icon: "analytics", text: `How are the soil and moisture conditions in this field?`, category: "Field Soil" },
+          { icon: "coronavirus", text: `Are there any disease outbreaks or risks in this field?`, category: "Field Risk" },
+          { icon: "water_drop", text: `Does this field need irrigation today?`, category: "Irrigation" },
+          { icon: "checklist", text: `What are the priority actions for this field?`, category: "Actions" },
+        ]
+    : language === "bn"
       ? [
           { icon: "grid_view", text: "আমার কোন জমিতে রোগ দেখা দিয়েছে?", category: "Fields" },
           { icon: "trending_up", text: "আমার ফসলের স্বাস্থ্য কি উন্নতি হচ্ছে?", category: "Trends" },
@@ -409,8 +442,13 @@ function AssistantContent() {
   // Initial welcome message localized
   useEffect(() => {
     if (!authLoading && user && (messages.length === 0 || (messages.length === 1 && messages[0].role === "assistant"))) {
-      const welcomeText =
-        language === "bn"
+      const welcomeText = fieldName
+        ? language === "bn"
+          ? `নমস্কার! আমি এগ্রিসাইট এআই — "${fieldName}" জমির জন্য প্রস্তুত। এই জমির ফসল, মাটির অবস্থা ও রোগ প্রতিরোধ সম্পর্কে যেকোনো প্রশ্ন করুন।`
+          : language === "hi"
+          ? `नमस्ते! मैं एग्रीसाइट एआई हूँ — "${fieldName}" खेत के लिए तैयार। इस खेत की फसल, मिट्टी की स्थिति और उपचार के बारे में कोई भी प्रश्न पूछें।`
+          : `Hello! I'm AgriSight AI — ready to assist with "${fieldName}". Ask me about crop health, risk alerts, or recommendations for this field.`
+        : language === "bn"
           ? "নমস্কার! আমি এগ্রিসাইট এআই — আপনার কৃষি সিদ্ধান্ত উপদেষ্টা। আপনার নিবন্ধিত জমি, ফসল এবং পাতার স্ক্যানের ডেটা আমার সাথে যুক্ত রয়েছে।\n\nরোগের বিস্তার, চিকিৎসা পরামর্শ বা প্রতিরোধমূলক পদক্ষেপ সম্পর্কে আমাকে প্রশ্ন করুন।"
           : language === "hi"
           ? "नमस्ते! मैं एग्रीसाइट एआई हूँ — आपका कृषि निर्णय सलाहकार। मेरे पास आपके पंजीकृत खेतों, फसलों और पत्ती स्कैन इतिहास का डेटा है।\n\nमुझसे रोग की स्थिति, उपचार मार्गदर्शन या रोकथाम के बारे में पूछें।"
@@ -427,7 +465,7 @@ function AssistantContent() {
         },
       ]);
     }
-  }, [authLoading, user, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading, user, language, fieldName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -448,7 +486,7 @@ function AssistantContent() {
       setIsThinking(true);
 
       try {
-        const result = await api.assistantChat(trimmed, language);
+        const result = await api.assistantChat(trimmed, language, fieldId || undefined);
         const aiMsg: Message = {
           id: uid(),
           role: "assistant",
@@ -514,6 +552,15 @@ function AssistantContent() {
                 {t("cropIntelligence")}
               </p>
             </div>
+            {fieldId && (
+              <Link
+                href={`/fields/${fieldId}`}
+                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition-colors ml-2"
+              >
+                <span className="material-symbols-outlined text-xs">grid_view</span>
+                <span>{fieldName || t("fields")}</span>
+              </Link>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
 
     REDIS_URL: str = "redis://localhost:6379/0"
+    PORT: int = 8000
+    CORS_ORIGINS: str = "*"
 
     model_config = SettingsConfigDict(
         env_file=[str(p) for p in _env_paths if p.exists()] or [".env"],

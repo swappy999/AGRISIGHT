@@ -16,14 +16,19 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const { t } = useTranslation();
   const { user, profile, logout } = useAuth();
 
-  const navItems = [
+  // Primary nav: field-centric model
+  const primaryNavItems = [
     { name: t("home"), href: "/dashboard", icon: "space_dashboard" },
     { name: t("fields"), href: "/fields", icon: "grid_view" },
-    { name: t("crops"), href: "/crops", icon: "eco" },
     { name: t("scanLeaf"), href: "/scan", icon: "energy_savings_leaf" },
+    { name: t("askAgriSight"), href: "/assistant", icon: "chat_bubble" },
+    { name: t("profile"), href: "/profile", icon: "person" },
+  ];
+
+  // Secondary nav: accessible but not primary on mobile
+  const secondaryNavItems = [
     { name: t("alerts"), href: "/alerts", icon: "notifications" },
     { name: t("analytics"), href: "/analytics", icon: "insights" },
-    { name: t("profile"), href: "/profile", icon: "person" },
   ];
 
   const handleLogout = async () => {
@@ -36,11 +41,11 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
     if (itemHref === "/dashboard") {
       return pathname === "/dashboard" || pathname === "/";
     }
-    if (itemHref === "/analytics") {
-      return pathname.startsWith("/analytics") || pathname.startsWith("/history");
-    }
     if (itemHref === "/profile") {
       return pathname.startsWith("/profile") || pathname.startsWith("/settings");
+    }
+    if (itemHref === "/analytics") {
+      return pathname.startsWith("/analytics") || pathname.startsWith("/history");
     }
     return pathname.startsWith(itemHref);
   };
@@ -84,9 +89,9 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
         )}
       </div>
 
-      {/* Navigation List */}
-      <nav aria-label="Main navigation" className="flex-1 space-y-1.5 overflow-y-auto pr-1">
-        {navItems.map((item) => {
+      {/* Primary Navigation */}
+      <nav aria-label="Main navigation" className="flex-1 space-y-1 overflow-y-auto pr-1">
+        {primaryNavItems.map((item) => {
           const isActive = isRouteActive(item.href);
 
           return (
@@ -106,6 +111,40 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
                 className={`material-symbols-outlined text-xl transition-transform duration-200 ${
                   isActive ? "scale-110" : "group-hover:scale-110"
                 }`}
+                style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                {item.icon}
+              </span>
+              <span className="tracking-tight truncate">{item.name}</span>
+            </Link>
+          );
+        })}
+
+        {/* Divider */}
+        <div className="pt-3 pb-1">
+          <p className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest px-5">
+            More
+          </p>
+        </div>
+
+        {/* Secondary Nav Items */}
+        {secondaryNavItems.map((item) => {
+          const isActive = isRouteActive(item.href);
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={onCloseMobile}
+              aria-current={isActive ? "page" : undefined}
+              className={`flex items-center gap-3.5 px-4 sm:px-5 py-3.5 rounded-2xl transition-all duration-200 group font-semibold text-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none ${
+                isActive
+                  ? "bg-primary/15 text-primary"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/60"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined text-[18px]"
                 style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
               >
                 {item.icon}

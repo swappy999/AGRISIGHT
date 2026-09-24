@@ -14,20 +14,37 @@ async function upsertProfile(
   fullName: string,
   avatarUrl: string | null,
   preferredLanguage: string
-) {
+): Promise<{ username: string | null }> {
   try {
-    await supabase.from("profiles").upsert(
-      {
-        id: userId,
-        full_name: fullName,
-        avatar_url: avatarUrl,
-        preferred_language: preferredLanguage,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
+    const timeoutPromise = new Promise<{ username: string | null }>((resolve) =>
+      setTimeout(() => resolve({ username: null }), 2000)
     );
+
+    const workPromise = (async () => {
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", userId)
+        .maybeSingle();
+
+      await supabase.from("profiles").upsert(
+        {
+          id: userId,
+          full_name: fullName,
+          avatar_url: avatarUrl,
+          preferred_language: preferredLanguage,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+
+      return { username: existing?.username || null };
+    })();
+
+    return await Promise.race([workPromise, timeoutPromise]);
   } catch {
     // Non-blocking — profile upsert failure must not break login
+    return { username: null };
   }
 }
 
@@ -39,6 +56,34 @@ function AuthCallbackContent() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    let isRedirected = false;
+
+    const navigateToNext = (hasUsername: boolean, isRecovery: boolean) => {
+      if (isRedirected) return;
+      isRedirected = true;
+      if (isRecovery) {
+        setStatusMsg("Redirecting to password reset...");
+        router.push("/reset-password");
+      } else if (!hasUsername) {
+        setStatusMsg("Taking you to choose a username...");
+        router.push("/onboarding/username");
+      } else {
+        setStatusMsg("Sign-in successful! Opening dashboard...");
+        router.push("/dashboard");
+      }
+    };
+
+    // Fast-path listener: as soon as session is established, navigate immediately
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, s) => {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && s?.user) {
+        const u = s.user;
+        const uName = u.user_metadata?.username;
+        navigateToNext(Boolean(uName), searchParams.get("type") === "recovery");
+      }
+    });
+
     async function handleAuthCallback() {
       try {
         // 1. Check for OAuth errors (e.g. user cancelled Google sign-in)
@@ -50,7 +95,7 @@ function AuthCallbackContent() {
             (errorDesc && errorDesc.toLowerCase().includes("denied"));
           setErrorMsg(
             isCancelled
-              ? "Google sign-in was cancelled. You can sign in anytime or use demo access."
+              ? "Google sign-in was cancelled. Please try signing in again."
               : errorDesc || oauthError
           );
           return;
@@ -59,14 +104,37 @@ function AuthCallbackContent() {
         const type = searchParams.get("type");
         const code = searchParams.get("code");
 
-        // PKCE Code Exchange flow (Google OAuth + email verification)
-        if (code) {
+        const getSafeSession = async () => {
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null }, error: null }), 2500)
+          );
+          return await Promise.race([sessionPromise, timeoutPromise]);
+        };
+
+        // Check if session was already detected/established
+        let { data: { session: existingSession } } = await getSafeSession();
+
+        // PKCE Code Exchange flow
+        if (code && !existingSession) {
           setStatusMsg("Exchanging verification code...");
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
+          try {
+            const exchangePromise = supabase.auth.exchangeCodeForSession(code);
+            const timeoutPromise = new Promise<{ error: Error }>((_, reject) =>
+              setTimeout(() => reject(new Error("Exchange timed out")), 5000)
+            );
+            const { error } = await Promise.race([exchangePromise, timeoutPromise]);
+            if (error) {
+              const { data: { session: checkSession } } = await getSafeSession();
+              if (!checkSession) throw error;
+            }
+          } catch (exchangeErr) {
+            const { data: { session: checkSession } } = await getSafeSession();
+            if (!checkSession) throw exchangeErr;
+          }
         }
 
-        // Parse hash fragment if present (implicit / legacy flow fallback)
+        // Parse hash fragment if present (implicit / legacy fallback)
         if (typeof window !== "undefined" && window.location.hash) {
           const hashParams = new URLSearchParams(window.location.hash.substring(1));
           const accessToken = hashParams.get("access_token");
@@ -81,18 +149,20 @@ function AuthCallbackContent() {
             });
             if (error) throw error;
             if (hashType === "recovery") {
-              router.push("/reset-password");
+              navigateToNext(false, true);
               return;
             }
           }
         }
 
-        // Refresh session state in AuthContext
-        await refreshSession();
+        // Refresh session in background
+        refreshSession().catch(() => {});
 
-        // Get current session to upsert profile
+        // Fetch user info for profile upsert
         setStatusMsg("Setting up your profile...");
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await getSafeSession();
+        let existingUsername: string | null = null;
+
         if (session?.user) {
           const u = session.user;
           const fullName =
@@ -108,16 +178,11 @@ function AuthCallbackContent() {
             u.user_metadata?.preferred_language ||
             (typeof window !== "undefined" ? localStorage.getItem("agrisight_language") || "en" : "en");
 
-          await upsertProfile(u.id, fullName, avatarUrl, preferredLanguage);
+          const res = await upsertProfile(u.id, fullName, avatarUrl, preferredLanguage);
+          existingUsername = res.username || u.user_metadata?.username || null;
         }
 
-        if (type === "recovery") {
-          setStatusMsg("Redirecting to password reset...");
-          router.push("/reset-password");
-        } else {
-          setStatusMsg("Sign-in successful! Opening dashboard...");
-          router.push("/dashboard");
-        }
+        navigateToNext(Boolean(existingUsername), type === "recovery");
       } catch (err: unknown) {
         setErrorMsg(
           err instanceof Error
@@ -128,6 +193,10 @@ function AuthCallbackContent() {
     }
 
     handleAuthCallback();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [router, searchParams, refreshSession]);
 
   return (

@@ -14,8 +14,8 @@ export function BottomNav() {
   ];
 
   const rightNavItems = [
-    { name: t("alerts"), href: "/alerts", icon: "notifications" },
-    { name: t("analytics"), href: "/analytics", icon: "insights" },
+    { name: t("askAgriSight"), href: "/assistant", icon: "chat_bubble" },
+    { name: t("profile"), href: "/profile", icon: "person" },
   ];
 
   const isScanActive = pathname === "/scan";
@@ -27,10 +27,13 @@ export function BottomNav() {
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       <div className="flex items-end justify-between px-1 h-20 max-w-lg mx-auto">
-        {/* Left nav items: Home, Crops, Fields */}
+        {/* Left nav items: Home, Fields */}
         <div className="flex items-center justify-around flex-1">
           {leftNavItems.map((item) => {
-            const isActive = pathname === item.href || (item.href === "/dashboard" && pathname === "/");
+            const isActive =
+              pathname === item.href ||
+              (item.href === "/dashboard" && pathname === "/") ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.href}
@@ -41,7 +44,11 @@ export function BottomNav() {
                   isActive ? "text-primary font-bold" : "text-on-surface-variant font-medium"
                 }`}
               >
-                <div className={`px-2.5 py-1 rounded-full transition-all ${isActive ? "bg-primary-container text-on-primary-container" : ""}`}>
+                <div
+                  className={`px-2.5 py-1 rounded-full transition-all ${
+                    isActive ? "bg-primary-container text-on-primary-container" : ""
+                  }`}
+                >
                   <span
                     className="material-symbols-outlined text-[20px]"
                     style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
@@ -49,7 +56,11 @@ export function BottomNav() {
                     {item.icon}
                   </span>
                 </div>
-                <span className={`text-[10px] font-black tracking-tight truncate max-w-[4.5rem] text-center ${isActive ? "opacity-100" : "opacity-70"}`}>
+                <span
+                  className={`text-[10px] font-black tracking-tight truncate max-w-[4.5rem] text-center ${
+                    isActive ? "opacity-100" : "opacity-70"
+                  }`}
+                >
                   {item.name}
                 </span>
               </Link>
@@ -81,10 +92,12 @@ export function BottomNav() {
           </span>
         </div>
 
-        {/* Right nav items: Alerts, Analytics, Profile */}
+        {/* Right nav items: Ask AgriSight, Profile */}
         <div className="flex items-center justify-around flex-1">
           {rightNavItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.href}
@@ -95,7 +108,11 @@ export function BottomNav() {
                   isActive ? "text-primary font-bold" : "text-on-surface-variant font-medium"
                 }`}
               >
-                <div className={`px-2.5 py-1 rounded-full transition-all ${isActive ? "bg-primary-container text-on-primary-container" : ""}`}>
+                <div
+                  className={`px-2.5 py-1 rounded-full transition-all ${
+                    isActive ? "bg-primary-container text-on-primary-container" : ""
+                  }`}
+                >
                   <span
                     className="material-symbols-outlined text-[20px]"
                     style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
@@ -103,7 +120,11 @@ export function BottomNav() {
                     {item.icon}
                   </span>
                 </div>
-                <span className={`text-[10px] font-black tracking-tight truncate max-w-[4.5rem] text-center ${isActive ? "opacity-100" : "opacity-70"}`}>
+                <span
+                  className={`text-[10px] font-black tracking-tight truncate max-w-[4.5rem] text-center ${
+                    isActive ? "opacity-100" : "opacity-70"
+                  }`}
+                >
                   {item.name}
                 </span>
               </Link>

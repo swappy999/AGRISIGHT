@@ -29,7 +29,7 @@ def _clean_json_str(text: str) -> str:
 def normalize_language(lang: str = "en", text: str = "") -> str:
     """
     Robustly normalizes language tags like 'bn-IN', 'bn_IN', 'bengali', 'hi-IN', etc.
-    Also auto-detects Bengali or Devanagari script in farmer messages.
+    Also auto-detects Bengali or Devanagari Unicode script or Romanized farmer messages.
     """
     lang_str = str(lang or "").strip().lower()
     if lang_str.startswith("bn") or "bengali" in lang_str or "bangla" in lang_str:
@@ -41,6 +41,15 @@ def normalize_language(lang: str = "en", text: str = "") -> str:
         if re.search(r'[\u0980-\u09FF]', text):
             return "bn"
         if re.search(r'[\u0900-\u097F]', text):
+            return "hi"
+        # Detect Romanized / Hinglish or Banglish phrases
+        lowered = text.lower()
+        bn_clues = ["amar", "amader", "kemon", "ache", "hoyeche", "hobe", "foshol", "pata", "holud", "shech", "jomi"]
+        hi_clues = ["kya", "kaise", "kisan", "fasal", "khet", "paudhe", "patte", "patti", "keeda", "peela", "upchar", "pani", "dawa", "tamatar"]
+        words = set(re.findall(r'\b[a-z]+\b', lowered))
+        if len(words.intersection(bn_clues)) >= 2 or (len(words.intersection(bn_clues)) >= 1 and any(w in words for w in ["amar", "amader", "foshol"])):
+            return "bn"
+        if len(words.intersection(hi_clues)) >= 2 or (len(words.intersection(hi_clues)) >= 1 and any(w in words for w in ["kisan", "fasal", "khet", "tamatar"])):
             return "hi"
     return "en"
 
@@ -586,17 +595,14 @@ class GeminiService:
         try:
             self.client = genai.Client(
                 api_key=settings.GEMINI_API_KEY,
-                http_options=types.HttpOptions(timeout=25000)
+                http_options=types.HttpOptions(timeout=15000)
             )
-            self.model_name = 'gemini-2.5-flash'
+            self.model_name = 'gemini-3.5-flash-lite'
             self.fallback_models = [
-                'gemini-2.5-flash',
-                'gemini-2.5-flash-lite',
-                'gemini-flash-latest',
                 'gemini-3.5-flash-lite',
-                'gemini-3.5-flash',
-                'gemini-3.6-flash',
-                'gemini-3.7-flash',
+                'gemini-2.5-flash',
+                'gemini-flash-latest',
+                'gemini-2.5-flash-lite',
             ]
         except Exception as e:
             logger.error(f"Failed to initialize Gemini Client: {str(e)}")
@@ -800,7 +806,7 @@ JSON SCHEMA REQUIRED (respond ONLY with valid JSON):
                 image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
         except Exception as e:
             logger.warning(f"Invalid image format or decoding error ({e}). Using vision fallback.")
-            return _get_agronomic_vision_fallback(question, language)
+            return _get_agronomic_vision_fallback(question, norm_lang)
 
         last_error = None
         for model in self.fallback_models:
@@ -817,13 +823,13 @@ JSON SCHEMA REQUIRED (respond ONLY with valid JSON):
                     continue
                 clean_text = _clean_json_str(response.text)
                 data = json.loads(clean_text)
-                return _normalize_analysis_data(data, language)
+                return _normalize_analysis_data(data, norm_lang)
             except Exception as e:
                 last_error = e
                 logger.warning(f"Vision model {model} attempt failed: {e}")
 
         logger.warning(f"All Gemini vision models exhausted ({last_error}). Providing agronomic vision fallback.")
-        return _get_agronomic_vision_fallback(question, language)
+        return _get_agronomic_vision_fallback(question, norm_lang)
 
     def chat_with_context(
         self,

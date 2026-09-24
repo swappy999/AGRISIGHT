@@ -125,6 +125,7 @@ class CropUpdate(BaseModel):
 class AssistantChatRequest(BaseModel):
     message: str                   # The farmer's question
     language: str = "en"           # "en" | "bn" | "hi" — response language hint
+    field_id: str = ""             # Optional field ID to anchor discussion
 
 # ── Intervention & Action Tracking Schema (Phase J) ────────────────────────────
 class InterventionCreate(BaseModel):

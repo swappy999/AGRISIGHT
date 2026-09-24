@@ -120,14 +120,15 @@ function ScanContent() {
         ]);
         if (Array.isArray(cropsData)) {
           setCrops(cropsData);
-          const paramCropId = searchParams.get("crop_id");
+          const paramCropId = searchParams.get("crop_id") || searchParams.get("cropId");
           if (paramCropId && cropsData.some((c) => c.id === paramCropId)) {
             setSelectedCropId(paramCropId);
           }
         }
         if (Array.isArray(fieldsData)) {
           setFields(fieldsData);
-          const paramFieldId = searchParams.get("field_id");
+          // Support both ?field_id= and ?fieldId= (from Field Workspace CTA)
+          const paramFieldId = searchParams.get("field_id") || searchParams.get("fieldId");
           if (paramFieldId && fieldsData.some((f) => f.id === paramFieldId)) {
             setSelectedFieldId(paramFieldId);
           }
@@ -750,8 +751,8 @@ function ScanContent() {
       <div className="sticky top-0 z-30 bg-surface/95 backdrop-blur-xl border-b border-outline-variant/20">
         <div className="max-w-2xl lg:max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
           <Link
-            href="/dashboard"
-            aria-label="Back to dashboard"
+            href={selectedFieldId ? `/fields/${selectedFieldId}` : "/dashboard"}
+            aria-label="Back"
             className="touch-target w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-highest transition-colors shrink-0"
           >
             <span className="material-symbols-outlined text-xl">arrow_back</span>
@@ -761,8 +762,10 @@ function ScanContent() {
               {t("scanLeaf")}
             </h1>
             {step === "idle" && (
-              <p className="text-xs text-on-surface-variant font-medium mt-0.5 leading-none">
-                {t("uploadInstruction")}
+              <p className="text-xs text-on-surface-variant font-medium mt-0.5 leading-none truncate">
+                {selectedFieldId && fields.find((f) => f.id === selectedFieldId)
+                  ? `📍 ${fields.find((f) => f.id === selectedFieldId)?.name}`
+                  : t("uploadInstruction")}
               </p>
             )}
           </div>
