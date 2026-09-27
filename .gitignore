@@ -102,6 +102,8 @@ lerna-debug.log*
 *.tar.gz
 *.apk
 !releases/AgriSight-release.apk
+!AgriSight-release.apk
+!AgriSight.apk
 *.aab
 *.keystore
 *.jks

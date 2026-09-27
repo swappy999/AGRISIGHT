@@ -8,6 +8,8 @@ Built for **Smart India Hackathon 2026 — SIH26180**, AgriSight combines **loca
 
 > **Sense → Detect → Predict → Advise → Act**
 
+> 📱 **Android Application Package (APK)**: [Download AgriSight-release.apk](./AgriSight-release.apk) (Ready-to-install Production Release)
+
 ---
 
 ## 🏆 Smart India Hackathon
