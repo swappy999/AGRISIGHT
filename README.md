@@ -8,7 +8,18 @@ Built for **Smart India Hackathon 2026 — SIH26180**, AgriSight combines **loca
 
 > **Sense → Detect → Predict → Advise → Act**
 
-> 📱 **Android Application Package (APK)**: [Download AgriSight-release.apk](./AgriSight-release.apk) (Ready-to-install Production Release)
+---
+
+### 📲 Download Android App (Direct APK)
+
+| Distribution | Download Link | File Size |
+|---|---|---|
+| **Direct 1-Click Download** | [⬇️ **Download AgriSight.apk**](https://github.com/swappy999/AGRISIGHT/raw/main/AgriSight.apk) | `17.9 MB` |
+| **Production Release Package** | [⬇️ **Download AgriSight-release.apk**](https://github.com/swappy999/AGRISIGHT/raw/main/AgriSight-release.apk) | `17.9 MB` |
+| **High-Speed CDN Mirror** | [⚡ **Download via Raw CDN**](https://raw.githubusercontent.com/swappy999/AGRISIGHT/main/AgriSight.apk) | `17.9 MB` |
+| **GitHub Releases Page** | [📦 **View v1.0.0 Release**](https://github.com/swappy999/AGRISIGHT/releases/tag/v1.0.0) | Release Tag |
+
+> 💡 **Installation Note**: Tap any link above on your Android device to download the APK directly. Once downloaded, open the file from your notifications or Downloads folder to install. If prompted, allow "Install unknown apps" for your browser.
 
 ---
 
