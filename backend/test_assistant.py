@@ -84,11 +84,69 @@ def test_assistant_chat_contract_fields():
     
     print("[PASS] test_assistant_chat_contract_fields passed")
 
+def test_recent_scan_memory_query_english():
+    crops = [{"name": "Tomato", "variety": "Pusa Ruby", "growth_stage": "Fruiting"}]
+    analyses = [{
+        "disease": "Early Blight",
+        "severity": "Medium",
+        "created_at": "2026-03-20T10:00:00Z",
+        "result_json": {"crop": "Tomato", "actions": ["Apply copper fungicide"]}
+    }]
+    res = _get_agronomic_fallback("What did you find in my last scan?", crops, analyses, language="en")
+    assert "Early Blight" in res["answer"]
+    assert "Tomato" in res["answer"] or "crop" in res["answer"]
+    assert res["is_grounded"] is True
+    assert "2026-03-20" in str(res["evidence_points"])
+    print("[PASS] test_recent_scan_memory_query_english passed")
+
+def test_recent_scan_memory_query_bengali():
+    crops = [{"name": "টমেটো", "variety": "পুসা রুবি", "growth_stage": "ফল ধারণ"}]
+    analyses = [{
+        "disease": "আর্লি ব্লাইট",
+        "severity": "মাঝারি",
+        "created_at": "2026-03-20T10:00:00Z",
+        "result_json": {"crop": "টমেটো", "actions": ["কপার ছত্রাকনাশক স্প্রে করুন"]}
+    }]
+    res = _get_agronomic_fallback("আমার শেষ স্ক্যানে আপনি কী পেয়েছিলেন?", crops, analyses, language="bn")
+    assert "আর্লি ব্লাইট" in res["answer"]
+    assert "টমেটো" in res["answer"]
+    assert res["is_grounded"] is True
+    print("[PASS] test_recent_scan_memory_query_bengali passed")
+
+def test_recent_scan_memory_query_hindi():
+    crops = [{"name": "टमाटर", "variety": "पूसा रूबी", "growth_stage": "फलन"}]
+    analyses = [{
+        "disease": "अगेती झुलसा",
+        "severity": "मध्यम",
+        "created_at": "2026-03-20T10:00:00Z",
+        "result_json": {"crop": "टमाटर", "actions": ["कॉपर कवकनाशी का छिड़काव करें"]}
+    }]
+    res = _get_agronomic_fallback("मेरे पिछले स्कैन में क्या बीमारी पाई गई?", crops, analyses, language="hi")
+    assert "अगेती झुलसा" in res["answer"]
+    assert "टमाटर" in res["answer"]
+    assert res["is_grounded"] is True
+    print("[PASS] test_recent_scan_memory_query_hindi passed")
+
+def test_recent_scan_memory_empty_history():
+    res_en = _get_agronomic_fallback("What did you find in my last scan?", [], [], language="en")
+    assert "haven't completed a leaf scan yet" in res_en["answer"]
+
+    res_bn = _get_agronomic_fallback("আমার শেষ স্ক্যানে কী ছিল?", [], [], language="bn")
+    assert "স্ক্যান সম্পন্ন করেননি" in res_bn["answer"]
+
+    res_hi = _get_agronomic_fallback("मेरे पिछले स्कैन में क्या मिला?", [], [], language="hi")
+    assert "स्कैन नहीं किया है" in res_hi["answer"]
+    print("[PASS] test_recent_scan_memory_empty_history passed")
+
 if __name__ == "__main__":
     test_assistant_fallback_english()
     test_assistant_fallback_bengali()
     test_assistant_fallback_hindi()
     test_broken_plant_guidance()
+    test_recent_scan_memory_query_english()
+    test_recent_scan_memory_query_bengali()
+    test_recent_scan_memory_query_hindi()
+    test_recent_scan_memory_empty_history()
     test_assistant_chat_contract_fields()
     print("\nALL ASSISTANT TESTS PASSED!")
 

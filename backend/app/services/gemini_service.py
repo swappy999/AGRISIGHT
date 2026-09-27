@@ -499,6 +499,96 @@ def _get_agronomic_fallback(message: str, crops: list, analyses: list, language:
     msg = message.lower()
     norm_lang = normalize_language(language, message)
     recent_disease = analyses[0].get("disease") if analyses else None
+
+    # 0. Recent scan / diagnostic memory queries (a4.md Sections 23-28)
+    scan_query_terms = [
+        # English (a5.md Sections 5, 12, 14, 17, 39)
+        "last scan", "recent scan", "previous scan", "what did you find", "which disease",
+        "what disease", "last leaf", "my scan", "last diagnosis", "what was my scan",
+        "find in my last", "find in my recent", "find in last", "what did i scan",
+        "what did i just scan", "what was the condition", "which crop did i scan",
+        "what crop did i scan", "what was scanned", "most recently",
+        # Bengali (বাংলা) (a5.md Sections 23, 25, 39)
+        "শেষ স্ক্যান", "সর্বশেষ স্ক্যান", "আগের স্ক্যান", "কী পেয়েছিলেন", "কী রোগ", "কোন রোগ",
+        "পাতার স্ক্যান", "আমার শেষ স্ক্যান", "কী ধরা পড়েছিল", "কী স্ক্যান করেছিলাম",
+        "সর্বশেষ কী স্ক্যান", "কোন ফসল স্ক্যান", "ফসলের অবস্থা কী ছিল", "কী অবস্থা ছিল",
+        "আমি কি স্ক্যান করেছি", "আমি কী স্ক্যান করেছিলাম",
+        # Hindi (हिन्दी) (a5.md Sections 23, 26, 39)
+        "पिछला स्कैन", "अंतिम स्कैन", "क्या मिला", "कौन सा रोग", "कौन सी बीमारी", "पत्ती का स्कैन",
+        "मेरा पिछला स्कैन", "क्या बीमारी पाई गई", "क्या स्कैन किया था", "आखिरी बार क्या स्कैन",
+        "मैंने क्या स्कैन किया", "मैंने कौन सी फसल स्कैन की", "फसल की स्थिति क्या थी",
+        "मैंने आखिरी बार क्या स्कैन किया था", "मैंने हाल ही में क्या स्कैन किया"
+    ]
+    if any(term in msg for term in scan_query_terms):
+        if not analyses:
+            if norm_lang == "bn":
+                return {
+                    "answer": "আপনি এখনও কোনো পাতার স্ক্যান সম্পন্ন করেননি। আপনার অ্যাকাউন্টে পূর্বে সংরক্ষিত কোনো স্ক্যান ডেটা নেই।",
+                    "is_grounded": False,
+                    "confidence_tier": "Guidance",
+                    "evidence_points": ["কোনো সংরক্ষিত স্ক্যান রেকর্ড নেই"],
+                    "why_explanation": "বাস্তব স্ক্যান ছাড়া অনুমানভিত্তিক রোগ নির্ণয় করা হয় না।",
+                    "suggested_actions": ["'স্ক্যান' ট্যাবে গিয়ে আপনার ফসলের পাতার একটি পরিষ্কার ছবি তুলুন"]
+                }
+            elif norm_lang == "hi":
+                return {
+                    "answer": "आपने अभी तक कोई पत्ती स्कैन नहीं किया है। आपके खाते में पहले से कोई स्कैन रिकॉर्ड उपलब्ध नहीं है।",
+                    "is_grounded": False,
+                    "confidence_tier": "Guidance",
+                    "evidence_points": ["कोई सहेजा गया स्कैन रिकॉर्ड नहीं है"],
+                    "why_explanation": "बिना वास्तविक स्कैन के अनुमानित जानकारी नहीं दी जाती।",
+                    "suggested_actions": ["'स्कैन' टैब में जाकर अपनी फसल की पत्ती का फोटो लें"]
+                }
+            else:
+                return {
+                    "answer": "You haven't completed a leaf scan yet. There are no prior scan records saved in your account.",
+                    "is_grounded": False,
+                    "confidence_tier": "Guidance",
+                    "evidence_points": ["No scan records found in account"],
+                    "why_explanation": "AgriSight operates strictly on verified application data.",
+                    "suggested_actions": ["Go to the 'Scan' tab and capture a leaf photo"]
+                }
+        else:
+            latest = analyses[0]
+            d = latest.get("disease") or "Healthy Plant"
+            s = latest.get("severity") or "Low"
+            dt = str(latest.get("created_at", ""))[:10]
+            rj = latest.get("result_json") or {}
+            c_name = rj.get("crop") or "crop"
+            actions_list = rj.get("actions", [])
+            rec = actions_list[0] if isinstance(actions_list, list) and actions_list else "Maintain regular monitoring"
+            is_healthy = "healthy" in d.lower()
+
+            if norm_lang == "bn":
+                ans = f"আপনার সর্বশেষ স্ক্যানে ({dt}) {c_name} ফসলের পাতা সম্পূর্ণ সুস্থ ও রোগমুক্ত পাওয়া গিয়েছিল।" if is_healthy else f"আপনার সর্বশেষ স্ক্যানে ({dt}) {c_name} ফসলে \"{d}\" (তীব্রতা: {s}) শনাক্ত করা হয়েছিল।"
+                return {
+                    "answer": ans,
+                    "is_grounded": True,
+                    "confidence_tier": "High",
+                    "evidence_points": [f"তারিখ: {dt}", f"রোগ: {d}", f"তীব্রতা: {s}", f"ফসল: {c_name}"],
+                    "why_explanation": "আপনার সংরক্ষিত স্ক্যান ডেটা থেকে সরাসরি এই ফলাফল উপস্থাপন করা হয়েছে।",
+                    "suggested_actions": [rec if isinstance(rec, str) else "নিয়মিত পর্যবেক্ষণ চালিয়ে যান"]
+                }
+            elif norm_lang == "hi":
+                ans = f"आपके हालिया स्कैन ({dt}) में {c_name} फसल की पत्तियां पूरी तरह स्वस्थ पाई गई थीं।" if is_healthy else f"आपके हालिया स्कैन ({dt}) में {c_name} फसल में \"{d}\" (गंभीरता: {s}) पाया गया था।"
+                return {
+                    "answer": ans,
+                    "is_grounded": True,
+                    "confidence_tier": "High",
+                    "evidence_points": [f"दिनांक: {dt}", f"रोग: {d}", f"गंभीरता: {s}", f"फसल: {c_name}"],
+                    "why_explanation": "यह जानकारी आपके सहेजे गए स्कैन इतिहास से ली गई है।",
+                    "suggested_actions": [rec if isinstance(rec, str) else "नियमित निगरानी बनाए रखें"]
+                }
+            else:
+                ans = f"In your latest scan on {dt}, your {c_name} was diagnosed as healthy with no active pathogen detected." if is_healthy else f"In your latest scan on {dt}, your {c_name} was diagnosed with \"{d}\" at {s} severity."
+                return {
+                    "answer": ans,
+                    "is_grounded": True,
+                    "confidence_tier": "High",
+                    "evidence_points": [f"Date: {dt}", f"Diagnosis: {d}", f"Severity: {s}", f"Crop: {c_name}"],
+                    "why_explanation": "Directly retrieved from your verified diagnostic scan record.",
+                    "suggested_actions": [rec if isinstance(rec, str) else "Continue regular crop scouting"]
+                }
     
     # 1. Broken / physical damage queries
     if any(w in msg for w in ["broke", "broken", "snap", "fracture", "bend", "fell", "cut", "torn", "ভাঙা", "ভেঙে", "ডাল", "টুট", "टूटी", "शाखा", "टहनी"]):
@@ -838,7 +928,8 @@ JSON SCHEMA REQUIRED (respond ONLY with valid JSON):
         analyses: list,
         fields: list = None,
         interventions: list = None,
-        language: str = "en"
+        language: str = "en",
+        context_text: str = ""
     ) -> dict:
         norm_lang = normalize_language(language, message)
         if not self.client:
@@ -874,17 +965,46 @@ JSON SCHEMA REQUIRED (respond ONLY with valid JSON):
             field_lines.append(line)
         fields_block = "\n".join(field_lines) if field_lines else "  (no fields registered yet)"
 
+        # a5.md Section 12: Structured Scan Context
         scan_lines = []
-        for a in analyses[:8]:
-            disease = a.get("disease", "Unknown")
-            sev = a.get("severity", "Unknown")
-            date = str(a.get("created_at", ""))[:10]
-            rj = a.get("result_json") or {}
-            crop_name = rj.get("crop", "")
-            line = f"  - [{date}] Disease: {disease} (Severity: {sev})"
-            if crop_name: line += f" on {crop_name}"
-            scan_lines.append(line)
-        scans_block = "\n".join(scan_lines) if scan_lines else "  (no scan history yet)"
+        if analyses:
+            latest = analyses[0]
+            l_id = latest.get("id") or "scan_latest"
+            l_disease = latest.get("disease") or latest.get("condition") or "Healthy Plant"
+            l_sev = latest.get("severity") or "Low"
+            l_date = str(latest.get("created_at", ""))[:10]
+            l_rj = latest.get("result_json") or {}
+            l_crop = latest.get("crop") or l_rj.get("crop", "") or latest.get("crop_id", "")
+            l_field = latest.get("field_name") or latest.get("field_id", "")
+            l_actions = l_rj.get("actions") or l_rj.get("recommended_actions") or []
+            l_rec = l_actions[0] if isinstance(l_actions, list) and l_actions else ""
+            l_obs = l_rj.get("observations") or ([l_rj.get("summary")] if l_rj.get("summary") else [])
+            l_obs_str = "; ".join(l_obs) if isinstance(l_obs, list) and l_obs else (l_rj.get("summary") or "")
+
+            scan_lines.append("Latest completed scan:")
+            scan_lines.append(f"- Scan ID: {l_id}")
+            if l_field:
+                scan_lines.append(f"- Field: {l_field}")
+            scan_lines.append(f"- Crop: {l_crop or 'Specified crop'}")
+            scan_lines.append(f"- Date: {l_date}")
+            scan_lines.append(f"- Condition: {l_disease}")
+            scan_lines.append(f"- Severity: {l_sev}")
+            if l_obs_str:
+                scan_lines.append(f"- Observations: {l_obs_str}")
+            if l_rec:
+                scan_lines.append(f"- Recommendations: {l_rec}")
+
+            if len(analyses) > 1:
+                scan_lines.append("\nRecent scans:")
+                for a in analyses[1:6]:
+                    prev_id = a.get("id", "")
+                    prev_disease = a.get("disease") or a.get("condition") or "Healthy Plant"
+                    prev_sev = a.get("severity", "Low")
+                    prev_date = str(a.get("created_at", ""))[:10]
+                    prev_rj = a.get("result_json") or {}
+                    prev_crop = a.get("crop") or prev_rj.get("crop", "") or a.get("crop_id", "")
+                    scan_lines.append(f"- Scan ID: {prev_id} | Date: {prev_date} | Crop: {prev_crop or 'Crop'} | Condition: {prev_disease} | Severity: {prev_sev}")
+        scans_block = "\n".join(scan_lines) if scan_lines else "  (no scan history recorded yet)"
 
         intervention_lines = []
         for inv in interventions[:6]:
@@ -894,51 +1014,82 @@ JSON SCHEMA REQUIRED (respond ONLY with valid JSON):
             intervention_lines.append(f"  - [{date}] {action}{' - ' + notes if notes else ''}")
         interventions_block = "\n".join(intervention_lines) if intervention_lines else "  (no interventions recorded)"
 
+        # a5.md Section 13: Gemini System Instruction
         if norm_lang == "bn":
             target_lang_name = "Bengali (বাংলা)"
             system_instruction = (
-                "You are AgriSight AI, an expert agricultural decision advisor helping smallholder farmers.\n"
-                "CRITICAL INSTRUCTION (ABSOLUTE MANDATE):\n"
-                "The user's language is Bengali (বাংলা).\n"
-                "You MUST write ALL natural-language output fields ('answer', 'evidence_points', 'why_explanation', 'more_details', 'suggested_actions') "
-                "100% ENTIRELY in fluent, natural, farmer-friendly Bengali script (বাংলা).\n"
-                "Under NO circumstances should you output English sentences or Latin-script explanations, "
-                "even though the farmer's field history data above is in English.\n"
-                "Keep 'confidence_tier' as one of 'High', 'Moderate', or 'Guidance'."
+                "You are AgriSight Assistant.\n"
+                "You are an agricultural assistant operating inside the AgriSight application.\n"
+                "The application provides verified user-specific context with each request.\n"
+                "Use the supplied AgriSight context as the source of truth for: scans, scan history, fields, crops, alerts, recommendations, sensor readings, weather.\n"
+                "The user's selected language is Bengali (বাংলা).\n"
+                "Respond in Bengali (বাংলা) using natural standard Bengali script.\n"
+                "CRITICAL INSTRUCTIONS (ABSOLUTE MANDATES):\n"
+                "1. Never invent a scan.\n"
+                "2. Never invent a diagnosis.\n"
+                "3. Never invent field or crop information.\n"
+                "4. Never invent sensor readings.\n"
+                "5. Never claim the user scanned something unless it exists in the supplied context.\n"
+                "6. If the requested historical information is not available, clearly state that it is unavailable.\n"
+                "7. When the user asks about a previous scan, use the supplied scan history.\n"
+                "8. Keep answers concise and useful for a farmer.\n"
+                "9. Write ALL output fields ('answer', 'evidence_points', 'why_explanation', 'more_details', 'suggested_actions') 100% ENTIRELY in natural Bengali script (বাংলা).\n"
+                "10. Keep 'confidence_tier' as one of 'High', 'Moderate', or 'Guidance'."
             )
             lang_instruction = """The user's target language is Bengali (বাংলা).
-Understand the user's message in Bengali or mixed English-Bengali code-switching (e.g. 'tomato', 'fungus', 'blight', 'fertilizer').
-Respond entirely in natural, farmer-friendly Bengali for 'answer', 'evidence_points', 'why_explanation', 'more_details', and 'suggested_actions'.
-Do not return English explanations unless an agronomic or chemical name has no common Bengali equivalent.
-Keep 'confidence_tier' as one of 'High', 'Moderate', 'Guidance'."""
+Respond entirely in natural, farmer-friendly Bengali script (বাংলা) for 'answer', 'evidence_points', 'why_explanation', 'more_details', and 'suggested_actions'.
+Do not return English explanations. Keep 'confidence_tier' as one of 'High', 'Moderate', 'Guidance'."""
         elif norm_lang == "hi":
             target_lang_name = "Hindi (हिन्दी)"
             system_instruction = (
-                "You are AgriSight AI, an expert agricultural decision advisor helping smallholder farmers.\n"
-                "CRITICAL INSTRUCTION (ABSOLUTE MANDATE):\n"
-                "The user's language is Hindi (हिन्दी).\n"
-                "You MUST write ALL natural-language output fields ('answer', 'evidence_points', 'why_explanation', 'more_details', 'suggested_actions') "
-                "100% ENTIRELY in fluent, natural, farmer-friendly Hindi script (हिन्दी).\n"
-                "Under NO circumstances should you output English sentences or Latin-script explanations, "
-                "even though the farmer's field history data above is in English.\n"
-                "Keep 'confidence_tier' as one of 'High', 'Moderate', or 'Guidance'."
+                "You are AgriSight Assistant.\n"
+                "You are an agricultural assistant operating inside the AgriSight application.\n"
+                "The application provides verified user-specific context with each request.\n"
+                "Use the supplied AgriSight context as the source of truth for: scans, scan history, fields, crops, alerts, recommendations, sensor readings, weather.\n"
+                "The user's selected language is Hindi (हिन्दी).\n"
+                "Respond in Hindi (हिन्दी) using natural Devanagari script.\n"
+                "CRITICAL INSTRUCTIONS (ABSOLUTE MANDATES):\n"
+                "1. Never invent a scan.\n"
+                "2. Never invent a diagnosis.\n"
+                "3. Never invent field or crop information.\n"
+                "4. Never invent sensor readings.\n"
+                "5. Never claim the user scanned something unless it exists in the supplied context.\n"
+                "6. If the requested historical information is not available, clearly state that it is unavailable.\n"
+                "7. When the user asks about a previous scan, use the supplied scan history.\n"
+                "8. Keep answers concise and useful for a farmer.\n"
+                "9. Write ALL output fields ('answer', 'evidence_points', 'why_explanation', 'more_details', 'suggested_actions') 100% ENTIRELY in natural Devanagari script (हिन्दी).\n"
+                "10. Keep 'confidence_tier' as one of 'High', 'Moderate', or 'Guidance'."
             )
             lang_instruction = """The user's target language is Hindi (हिन्दी).
-Understand the user's message in Hindi or mixed English-Hindi code-switching.
-Respond entirely in natural, farmer-friendly Hindi for 'answer', 'evidence_points', 'why_explanation', 'more_details', and 'suggested_actions'.
-Do not return English explanations unless an agronomic or chemical name has no common Hindi equivalent.
-Keep 'confidence_tier' as one of 'High', 'Moderate', 'Guidance'."""
+Respond entirely in natural, farmer-friendly Devanagari script (हिन्दी) for 'answer', 'evidence_points', 'why_explanation', 'more_details', and 'suggested_actions'.
+Do not return English explanations. Keep 'confidence_tier' as one of 'High', 'Moderate', 'Guidance'."""
         else:
             target_lang_name = "English"
             system_instruction = (
-                "You are AgriSight AI, an expert agricultural decision advisor helping smallholder farmers.\n"
-                "Respond in clear, farmer-friendly English."
+                "You are AgriSight Assistant.\n"
+                "You are an agricultural assistant operating inside the AgriSight application.\n"
+                "The application provides verified user-specific context with each request.\n"
+                "Use the supplied AgriSight context as the source of truth for: scans, scan history, fields, crops, alerts, recommendations, sensor readings, weather.\n"
+                "The user's selected language is English.\n"
+                "Respond in clear, farmer-friendly English.\n"
+                "CRITICAL INSTRUCTIONS (ABSOLUTE MANDATES):\n"
+                "1. Never invent a scan.\n"
+                "2. Never invent a diagnosis.\n"
+                "3. Never invent field or crop information.\n"
+                "4. Never invent sensor readings.\n"
+                "5. Never claim the user scanned something unless it exists in the supplied context.\n"
+                "6. If the requested historical information is not available, clearly state that it is unavailable.\n"
+                "7. When the user asks about a previous scan, use the supplied scan history.\n"
+                "8. Keep answers concise and useful for a farmer.\n"
+                "9. Keep 'confidence_tier' as one of 'High', 'Moderate', or 'Guidance'."
             )
             lang_instruction = """The user's target language is English.
 Respond in clear, farmer-friendly English for 'answer', 'evidence_points', 'why_explanation', 'more_details', and 'suggested_actions'.
 Keep 'confidence_tier' as one of 'High', 'Moderate', 'Guidance'."""
 
-        prompt = f"""You are AgriSight, an expert agricultural decision intelligence AI assistant helping smallholder farmers.
+        client_ctx_segment = f"\nVERIFIED CLIENT APPLICATION CONTEXT:\n{context_text}\n" if context_text else ""
+
+        prompt = f"""You are AgriSight Assistant, an expert agricultural decision intelligence AI assistant helping smallholder farmers.
 
 You have access to the following REAL DATA from this farmer's AgriSight account:
 
@@ -953,7 +1104,7 @@ RECENT SCAN HISTORY (newest first):
 
 RECENT FIELD INTERVENTIONS & TREATMENTS:
 {interventions_block}
-
+{client_ctx_segment}
 FARMER'S QUESTION: "{message}"
 
 LANGUAGE & BEHAVIOR DIRECTIVES:
@@ -967,6 +1118,17 @@ LANGUAGE & BEHAVIOR DIRECTIVES:
    - Provide 1–3 clear, numbered actionable steps in 'suggested_actions'.
    - Put deeper explanations, IPM details, and chemical/biological science in 'more_details' for progressive disclosure.
 7. AGRICULTURAL FOCUS: You are strictly an agricultural assistant. If the farmer asks something unrelated to farming, crops, weather, soil, pests, or field management, politely acknowledge and redirect them to asking about their crops and farm health in {target_lang_name}.
+8. RECENT SCAN MEMORY DIRECTIVE (a5.md Sections 5, 12, 14, 17, 39):
+   If the farmer asks:
+   - "What did I scan most recently?" / "What did I just scan?" / "What was scanned?"
+   - "What did you find in my last scan?" / "What disease was found?"
+   - "Which crop did I scan?" / "What crop was scanned?"
+   - "What was the condition?" / "What was the severity?"
+   - "আমি সর্বশেষ কী স্ক্যান করেছিলাম?" / "আমার শেষ স্ক্যানে কী ধরা পড়েছিল?" / "কোন ফসল স্ক্যান করেছিলাম?" / "কী অবস্থা ছিল?"
+   - "मैंने आखिरी बार क्या स्कैन किया था?" / "मेरे पिछले स्कैन में क्या मिला?" / "मैंने कौन सी फसल स्कैन की थी?" / "फसल की स्थिति क्या थी?"
+   or any inquiry regarding past scan records:
+   You MUST answer strictly and truthfully using the actual crop, condition, severity, date, and recommendations from the "Latest completed scan" above in {target_lang_name}.
+   If no scan exists in history, explicitly state in {target_lang_name} that no scans have been performed yet. Never invent or hallucinate a scan!
 
 Return ONLY a valid JSON object matching this schema:
 {{

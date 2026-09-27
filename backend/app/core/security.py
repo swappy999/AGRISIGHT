@@ -8,6 +8,8 @@ from app.core.logging import logger
 
 security = HTTPBearer()
 
+# Real registered Supabase user UUID used for legacy data association in analysis queries.
+# This is NOT an auth bypass — it's used only in data-layer ownership checks.
 DEFAULT_DEV_USER_ID = "6013231d-43ee-47c2-8803-ba486258cc18"
 
 def verify_supabase_token(token: str) -> Dict[str, Any]:
@@ -21,17 +23,14 @@ def verify_supabase_token(token: str) -> Dict[str, Any]:
     except Exception as e:
         logger.warning(f"Supabase auth check failed ({str(e)}). Attempting token decode fallback.")
     
-    # Fallback 1: Extract user ID directly from JWT claims without remote call
+    # Fallback: Extract user ID directly from JWT claims without remote call
+    # This handles cases where Supabase is temporarily unreachable but the token is valid
     try:
         payload = jwt.get_unverified_claims(token)
         if payload and "sub" in payload:
-            return {"id": payload["sub"], "email": payload.get("email", "dev@agrisight.dev")}
+            return {"id": payload["sub"], "email": payload.get("email", "")}
     except Exception as jwt_err:
         logger.warning(f"JWT claim extraction failed: {jwt_err}")
 
-    # Fallback 2: Valid registered user UUID fallback for development
-    if not token or token in ["local-token", "demo-token"] or token.startswith("local-") or len(token) >= 5:
-        return {"id": DEFAULT_DEV_USER_ID, "email": "farmer@agrisight.com"}
-         
-    raise AuthError("Authentication failed: Invalid token")
+    raise AuthError("Authentication failed: Invalid or expired token")
 

@@ -6,6 +6,7 @@ import { useTranslation, Language, LANGUAGE_CONFIG } from "@/context/LanguageCon
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/apiClient";
 import { useSpeechInput } from "@/hooks/useSpeechInput";
+import { normalizeSpeechTranscript } from "@/lib/speechNormalization";
 import { useSpeechOutput } from "@/hooks/useSpeechOutput";
 import { VoiceVisualizer } from "@/components/VoiceVisualizer";
 
@@ -133,6 +134,134 @@ export function GlobalAssistant() {
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
 
+  // ── Movable / Draggable Floating Trigger State ──
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    hasMoved: boolean;
+    pointerId: number | null;
+  }>({ startX: 0, startY: 0, originX: 0, originY: 0, hasMoved: false, pointerId: null });
+  const triggerButtonRef = useRef<HTMLButtonElement>(null);
+  const wasDraggedRef = useRef(false);
+  const lastToggleTimeRef = useRef(0);
+
+  const toggleAssistant = useCallback(() => {
+    const now = Date.now();
+    if (now - lastToggleTimeRef.current < 250) return;
+    lastToggleTimeRef.current = now;
+    setIsOpen((prev) => !prev);
+  }, []);
+
+  // Restore saved position from localStorage once mounted
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("agrisight_assistant_pos");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed?.x === "number" && typeof parsed?.y === "number") {
+          const clampedX = Math.max(12, Math.min(window.innerWidth - 72, parsed.x));
+          const clampedY = Math.max(12, Math.min(window.innerHeight - 72, parsed.y));
+          setPosition({ x: clampedX, y: clampedY });
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Handle window resize so button stays inside screen
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => {
+        if (!prev) return null;
+        const clampedX = Math.max(12, Math.min(window.innerWidth - 72, prev.x));
+        const clampedY = Math.max(12, Math.min(window.innerHeight - 72, prev.y));
+        return { x: clampedX, y: clampedY };
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    const rect = triggerButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: rect.left,
+      originY: rect.top,
+      hasMoved: false,
+      pointerId: e.pointerId,
+    };
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+
+    if (!dragRef.current.hasMoved && Math.hypot(dx, dy) > 6) {
+      dragRef.current.hasMoved = true;
+      wasDraggedRef.current = true;
+      setIsDragging(true);
+    }
+
+    if (dragRef.current.hasMoved) {
+      const btnW = triggerButtonRef.current?.offsetWidth || 60;
+      const btnH = triggerButtonRef.current?.offsetHeight || 50;
+      const margin = 8;
+      const newX = Math.max(margin, Math.min(window.innerWidth - btnW - margin, dragRef.current.originX + dx));
+      const newY = Math.max(margin, Math.min(window.innerHeight - btnH - margin, dragRef.current.originY + dy));
+      setPosition({ x: newX, y: newY });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current.pointerId !== e.pointerId) return;
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    const didMove = dragRef.current.hasMoved;
+    dragRef.current.pointerId = null;
+    setIsDragging(false);
+
+    if (didMove) {
+      wasDraggedRef.current = true;
+      if (position) {
+        try {
+          localStorage.setItem("agrisight_assistant_pos", JSON.stringify(position));
+        } catch {}
+      }
+      setTimeout(() => {
+        wasDraggedRef.current = false;
+      }, 200);
+    } else {
+      // Tap / Click without dragging -> open assistant!
+      toggleAssistant();
+    }
+  };
+
+  const handleTriggerClick = (e: React.MouseEvent) => {
+    if (wasDraggedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    toggleAssistant();
+  };
+
   const toggleDetails = (msgId: string) => {
     setExpandedDetails((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
   };
@@ -176,10 +305,10 @@ export function GlobalAssistant() {
     if (user && (messages.length === 0 || (messages.length === 1 && messages[0].role === "assistant"))) {
       const welcome =
         language === "bn"
-          ? "নমস্কার! আমি এগ্রিসাইট এআই — আপনার বুদ্ধিমান কৃষি সহকারী। আপনার ফসল, জমি বা রোগের লক্ষণ সম্পর্কে যেকোনো প্রশ্ন জিজ্ঞাসা করুন।"
+          ? "নমস্কার! আমি এগ্রিসাইট কৃষি উপদেষ্টা — আপনার বুদ্ধিমান সহকারী। আপনার ফসল, জমি বা রোগের লক্ষণ সম্পর্কে যেকোনো প্রশ্ন জিজ্ঞাসা করুন।"
           : language === "hi"
-          ? "नमस्ते! मैं एग्रीसाइट एआई हूँ — आपका कृषि निर्णय सलाहकार। अपनी फसलों, खेतों या रोग के लक्षणों के बारे में कोई भी प्रश्न पूछें।"
-          : "Hello! I'm AgriSight AI — your agricultural decision advisor. Ask me anything about your crops, fields, disease risks, or treatments.";
+          ? "नमस्ते! मैं आपका एग्रीसाइट कृषि सलाहकार हूँ। अपनी फसलों, खेतों या रोग के लक्षणों के बारे में कोई भी प्रश्न पूछें।"
+          : "Hello! I'm your AgriSight agricultural advisor. Ask me anything about your crops, fields, disease risks, or treatments.";
 
       setMessages([
         {
@@ -244,7 +373,7 @@ export function GlobalAssistant() {
 
   const sendMessage = useCallback(
     async (text: string) => {
-      const trimmed = text.trim();
+      const trimmed = normalizeSpeechTranscript(text.trim());
       if (!trimmed || isThinking) return;
 
       const userMsg: AssistantMessage = {
@@ -321,34 +450,61 @@ export function GlobalAssistant() {
 
   return (
     <>
-      {/* ── Floating Launcher Trigger ── */}
-      <div className="fixed bottom-[6.5rem] sm:bottom-6 right-4 sm:right-6 z-40">
-        <button
-          type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
-          aria-label={isOpen ? t("closeAssistant") : t("openAssistant")}
-          className={`flex items-center gap-2.5 px-4 py-3 sm:px-5 sm:py-3.5 rounded-full shadow-2xl transition-all duration-300 font-extrabold text-xs sm:text-sm active:scale-95 group ${
-            isOpen
-              ? "bg-on-surface text-surface ring-2 ring-primary/40 shadow-primary/20"
-              : "bg-primary text-on-primary shadow-primary/30 hover:shadow-primary/50 hover:scale-105"
-          }`}
-        >
+      {/* ── Movable Floating Launcher Trigger ── */}
+      <button
+        ref={triggerButtonRef}
+        type="button"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onClick={handleTriggerClick}
+        aria-label={isOpen ? t("closeAssistant") : t("openAssistant")}
+        style={
+          position
+            ? {
+                left: `${position.x}px`,
+                top: `${position.y}px`,
+                right: "auto",
+                bottom: "auto",
+              }
+            : undefined
+        }
+        className={`fixed z-40 touch-none select-none flex items-center gap-2.5 px-4 py-3 sm:px-5 sm:py-3.5 rounded-full shadow-2xl font-extrabold text-xs sm:text-sm active:scale-95 group transition-[transform,shadow,background-color] duration-200 ${
+          !position ? "bottom-[6.5rem] sm:bottom-6 right-4 sm:right-6" : ""
+        } ${
+          isDragging
+            ? "cursor-grabbing scale-105 opacity-95 ring-4 ring-primary/40 shadow-emerald-900/40"
+            : "cursor-grab"
+        } ${
+          isOpen
+            ? "bg-on-surface text-surface ring-2 ring-primary/40 shadow-primary/20"
+            : "bg-primary text-on-primary shadow-primary/30 hover:shadow-primary/50"
+        }`}
+      >
+        {isOpen ? (
           <span
-            className={`material-symbols-outlined text-xl sm:text-2xl transition-transform duration-300 ${
-              isOpen ? "rotate-90" : "group-hover:rotate-12"
-            }`}
-            style={{ fontVariationSettings: "'FILL' 1" }}
+            className="material-symbols-outlined text-xl sm:text-2xl transition-transform duration-300 rotate-90"
           >
-            {isOpen ? "close" : "smart_toy"}
+            close
           </span>
-          <span className="hidden sm:inline">
-            {isOpen ? t("closeAssistant") : t("askAgriSight")}
-          </span>
-          {!isOpen && (
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-          )}
-        </button>
-      </div>
+        ) : (
+          <div className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 flex items-center justify-center pointer-events-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo-mark.png"
+              alt="AgriSight"
+              className="w-full h-full object-contain brightness-0 invert"
+            />
+          </div>
+        )}
+        <span className="hidden sm:inline pointer-events-none">
+          {isOpen ? t("closeAssistant") : t("askAgriSight")}
+        </span>
+        {!isOpen && (
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0 pointer-events-none" />
+        )}
+      </button>
 
       {/* ── Assistant Panel / Bottom Sheet ── */}
       {isOpen && (
@@ -362,13 +518,13 @@ export function GlobalAssistant() {
           {/* Header */}
           <div className="bg-surface-container-low/80 px-5 py-3.5 border-b border-outline-variant/20 flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-2xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
-                <span
-                  className="material-symbols-outlined text-xl"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  smart_toy
-                </span>
+              <div className="w-9 h-9 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-center p-1.5 shadow-2xs shrink-0 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logo-mark.png"
+                  alt="AgriSight"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div className="min-w-0">
                 <h3 className="text-sm font-extrabold text-on-surface truncate leading-tight">
@@ -380,7 +536,7 @@ export function GlobalAssistant() {
                     ? "বাংলা কৃষি সহকারী"
                     : language === "hi"
                     ? "हिन्दी कृषि सलाहकार"
-                    : "Grounded AI Copilot"}
+                    : "Agronomic Advisor"}
                 </p>
               </div>
             </div>
@@ -453,10 +609,13 @@ export function GlobalAssistant() {
             {messages.length === 0 && (
               <div className="space-y-4 py-2">
                 <div className="text-center space-y-1.5 py-3 bg-surface-container-lowest border border-outline-variant/15 rounded-3xl p-4 shadow-sm">
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2">
-                    <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      smart_toy
-                    </span>
+                  <div className="w-12 h-12 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-center p-2 mx-auto mb-2 shadow-sm overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/logo-mark.png"
+                      alt="AgriSight"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <h4 className="text-sm font-black text-on-surface">
                     {t("askAgriSight")}
@@ -515,13 +674,13 @@ export function GlobalAssistant() {
               // Assistant message (Crisp Mode per Section 11 of a4.md)
               return (
                 <div key={msg.id} className="flex gap-2.5 items-start">
-                  <div className="w-7 h-7 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0 mt-0.5">
-                    <span
-                      className="material-symbols-outlined text-base"
-                      style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
-                      smart_toy
-                    </span>
+                  <div className="w-7 h-7 rounded-xl bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-center p-1 shrink-0 mt-0.5 shadow-2xs overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/logo-mark.png"
+                      alt="AgriSight"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0 space-y-2">
@@ -702,8 +861,13 @@ export function GlobalAssistant() {
             {/* Thinking indicator */}
             {isThinking && (
               <div className="flex gap-2.5 items-center animate-in fade-in">
-                <div className="w-7 h-7 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0 animate-pulse">
-                  <span className="material-symbols-outlined text-base">smart_toy</span>
+                <div className="w-7 h-7 rounded-xl bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-center p-1 shrink-0 shadow-2xs overflow-hidden animate-pulse">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/logo-mark.png"
+                    alt="AgriSight"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div className="bg-surface-container-lowest border border-outline-variant/15 rounded-2xl rounded-tl-xs px-3.5 py-2 flex items-center gap-1.5">
                   <span className="text-xs font-bold text-on-surface-variant">

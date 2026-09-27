@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 export default function SignupPage() {
   const { t, language, setLanguage } = useTranslation();
   const router = useRouter();
-  const { signUp, signInWithGoogle, signInAsGuest, checkUsernameAvailable } = useAuth();
+  const { signUp, signInWithGoogle, checkUsernameAvailable } = useAuth();
 
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -210,7 +210,7 @@ export default function SignupPage() {
         <div className="rounded-[2rem] shadow-2xl p-8 bg-surface-bright space-y-6 border border-outline-variant/30">
           {/* Header */}
           <div className="flex flex-col items-center justify-center text-center">
-            <div className="w-20 h-20 rounded-3xl bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-center p-3 mb-4 shadow-xl shadow-primary/10 overflow-hidden">
+            <div className="w-20 h-20 rounded-3xl bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-center p-3 mb-2 shadow-xl shadow-primary/10 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo-mark.png"
@@ -218,7 +218,8 @@ export default function SignupPage() {
                 className="w-full h-full object-contain"
               />
             </div>
-            <h1 className="text-3xl font-extrabold text-on-surface tracking-tight">
+            <span className="text-xl font-black text-on-surface tracking-tight">AgriSight</span>
+            <h1 className="text-2xl font-extrabold text-on-surface tracking-tight mt-1">
               {t("signupWelcome")}
             </h1>
             <p className="text-on-surface-variant font-medium mt-1 text-sm">
@@ -302,25 +303,7 @@ export default function SignupPage() {
             )}
           </button>
 
-          {/* Guest Access Button */}
-          <button
-            id="btn-guest-signup"
-            type="button"
-            onClick={() => {
-              signInAsGuest();
-              router.push("/dashboard");
-            }}
-            className="w-full py-3.5 bg-primary/10 border-2 border-primary/25 text-primary font-bold rounded-xl shadow-sm hover:bg-primary/15 active:scale-[0.98] transition-all outline-none focus:ring-4 focus:ring-primary/20 flex items-center justify-center gap-2.5 text-[15px]"
-          >
-            <span className="material-symbols-outlined text-xl">person_outline</span>
-            <span>
-              {language === "hi"
-                ? "अतिथि के रूप में जारी रखें (Guest Mode)"
-                : language === "bn"
-                ? "গেস্ট হিসেবে প্রবেশ করুন (Guest Mode)"
-                : "Sign in as Guest (Instant Preview)"}
-            </span>
-          </button>
+
 
           {/* Divider */}
           <div className="flex items-center gap-3">

@@ -8,7 +8,7 @@ interface Intervention {
   id: string;
   action_type: string;
   action_title: string;
-  notes: string;
+  notes?: string;
   performed_at: string;
   created_at: string;
 }

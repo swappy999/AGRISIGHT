@@ -1,4 +1,4 @@
-export type Language = "en" | "hi" | "bn";
+﻿export type Language = "en" | "hi" | "bn";
 
 export interface LanguageConfig {
   code: Language;
@@ -258,6 +258,13 @@ export type TranslationKeys = {
   criticalAlertsSub: string;
   weeklySummariesPref: string;
   weeklySummariesSub: string;
+  appearance: string;
+  themeSystem: string;
+  themeLight: string;
+  themeDark: string;
+  themeSystemDesc: string;
+  themeLightDesc: string;
+  themeDarkDesc: string;
   needSupport: string;
   supportSub: string;
   contactSupport: string;
@@ -570,9 +577,9 @@ export const translations: Record<Language, TranslationKeys> = {
     alreadyHaveAccount: "Already have an account?",
 
     uploadTitle: "Upload Leaf Image",
-    analyzingTitle: "Analyzing your crop...",
+    analyzingTitle: "Local AI is processing",
     uploadInstruction: "📸 Take a clear photo of a single leaf",
-    analyzingInstruction: "Please wait while our AI processes the crop health datalink.",
+    analyzingInstruction: "Checking your leaf and field conditions.",
     selectImage: "Select Image",
     dragAndDrop: "Or drag and drop here",
     errorNoFile: "Please select an image first.",
@@ -601,7 +608,7 @@ export const translations: Record<Language, TranslationKeys> = {
     fileTooLarge: "Image exceeds 25MB maximum size.",
     stageCompressing: "Optimizing leaf imagery...",
     stageUploading: "Uploading to agronomic database...",
-    stageAiAnalyzing: "Gemini AI examining leaf pathology...",
+    stageAiAnalyzing: "Analyzing crop health and symptoms...",
     stageGeneratingInsights: "Formulating treatment & prevention roadmap...",
     openLiveCamera: "Live Viewfinder",
     switchCamera: "Switch Camera",
@@ -735,6 +742,13 @@ export const translations: Record<Language, TranslationKeys> = {
     criticalAlertsSub: "Urgent disease detections",
     weeklySummariesPref: "Weekly Summaries",
     weeklySummariesSub: "Crop health digest",
+    appearance: "Appearance",
+    themeSystem: "System",
+    themeLight: "Light",
+    themeDark: "Dark",
+    themeSystemDesc: "Follows your device or browser display settings automatically",
+    themeLightDesc: "Natural, warm botanical day mode",
+    themeDarkDesc: "Deep botanical dark mode designed for clear night visibility",
     needSupport: "Need support?",
     supportSub: "Contact our agriculture specialists for personalized crop advice.",
     contactSupport: "Contact Support",
@@ -780,17 +794,17 @@ export const translations: Record<Language, TranslationKeys> = {
     activePlots: "Monitored Plots",
     scannedCrops: "Scanned Crops",
 
-    aiAssistant: "AgriSight AI Copilot",
-    askAgriSight: "Ask AgriSight Copilot",
+    aiAssistant: "AgriSight Assistant",
+    askAgriSight: "Ask AgriSight",
     typeYourQuestion: "Ask about pest control, fertilizers, or diseases...",
     suggestedQuestions: "Suggested Inquiries",
     groundedAnswer: "Grounded Agronomic Analysis",
     generalGuidance: "Agricultural Knowledge",
     thinking: "Analyzing context...",
     askButton: "Send Inquiry",
-    aiAssistantDescription: "Your multilingual agronomic reasoning copilot.",
-    openAssistant: "Open AI Copilot",
-    closeAssistant: "Close Copilot",
+    aiAssistantDescription: "Your multilingual agronomic reasoning assistant.",
+    openAssistant: "Open AgriSight Assistant",
+    closeAssistant: "Close Assistant",
     clearChat: "Clear Session",
     groundedBadge: "Farm-Grounded",
     guidanceBadge: "General Guidance",
@@ -1063,9 +1077,9 @@ export const translations: Record<Language, TranslationKeys> = {
     alreadyHaveAccount: "क्या पहले से एक खाता है?",
 
     uploadTitle: "पत्ती की तस्वीर अपलोड करें",
-    analyzingTitle: "आपकी फसल का विश्लेषण हो रहा है...",
+    analyzingTitle: "पत्ती की जाँच हो रही है",
     uploadInstruction: "📸 एक पत्ते की स्पष्ट तस्वीर लें",
-    analyzingInstruction: "कृपया प्रतीक्षा करें, हमारा AI फसल के स्वास्थ्य का विश्लेषण कर रहा है।",
+    analyzingInstruction: "आपकी पत्ती और खेत की स्थिति जाँची जा रही है।",
     selectImage: "तस्वीर चुनें",
     dragAndDrop: "या यहाँ खींचें और छोड़ें",
     errorNoFile: "कृपया पहले एक तस्वीर चुनें।",
@@ -1228,6 +1242,13 @@ export const translations: Record<Language, TranslationKeys> = {
     criticalAlertsSub: "अति आवश्यक रोग पहचान",
     weeklySummariesPref: "साप्ताहिक सारांश",
     weeklySummariesSub: "फसल स्वास्थ्य डाइजेस्ट",
+    appearance: "रूप-रंग (Appearance)",
+    themeSystem: "सिस्टम (System)",
+    themeLight: "लाइट (Light)",
+    themeDark: "डार्क (Dark)",
+    themeSystemDesc: "स्वचालित रूप से आपके डिवाइस या ब्राउज़र की थीम का पालन करता है",
+    themeLightDesc: "प्राकृतिक, स्वच्छ व उज्ज्वल दिन मोड",
+    themeDarkDesc: "गहरा वनस्पति नाइट मोड, रात के लिए उपयुक्त",
     needSupport: "मदद चाहिए?",
     supportSub: "व्यक्तिगत फसल सलाह के लिए हमारे कृषि विशेषज्ञों से संपर्क करें।",
     contactSupport: "सहायता से संपर्क करें",
@@ -1273,8 +1294,8 @@ export const translations: Record<Language, TranslationKeys> = {
     activePlots: "निगरानी किए गए खेत",
     scannedCrops: "स्कैन की गई फसलें",
 
-    aiAssistant: "AI सहायक",
-    askAgriSight: "AgriSight AI से पूछें",
+    aiAssistant: "AgriSight सहायक",
+    askAgriSight: "AgriSight से पूछें",
     typeYourQuestion: "अपनी फसल, रोग या खेत के बारे में पूछें...",
     suggestedQuestions: "सुझाए गए प्रश्न",
     groundedAnswer: "आपके AgriSight डेटा के आधार पर",
@@ -1556,9 +1577,9 @@ export const translations: Record<Language, TranslationKeys> = {
     alreadyHaveAccount: "ইতিমধ্যে একটি অ্যাকাউন্ট আছে?",
 
     uploadTitle: "পাতার ছবি আপলোড করুন",
-    analyzingTitle: "আপনার ফসলের বিশ্লেষণ করা হচ্ছে...",
+    analyzingTitle: "পাতা পরীক্ষা করা হচ্ছে",
     uploadInstruction: "📸 একটি পাতার পরিষ্কার ছবি নিন",
-    analyzingInstruction: "অনুগ্রহ করে অপেক্ষা করুন, আমাদের AI ফসলের স্বাস্থ্য বিশ্লেষণ করছে।",
+    analyzingInstruction: "আপনার পাতা ও মাঠের অবস্থা যাচাই করা হচ্ছে।",
     selectImage: "ছবি নির্বাচন করুন",
     dragAndDrop: "বা এখানে টেনে আনুন",
     errorNoFile: "দয়া করে প্রথমে একটি ছবি নির্বাচন করুন।",
@@ -1587,7 +1608,7 @@ export const translations: Record<Language, TranslationKeys> = {
     fileTooLarge: "ছবির সাইজ অনুমোদিত সীমা অতিক্রম করেছে (সর্বোচ্চ ২৫ মেগাবাইট)।",
     stageCompressing: "পাতার ছবি অপ্টিমাইজ করা হচ্ছে...",
     stageUploading: "কৃষি ডাটাবেজে আপলোড করা হচ্ছে...",
-    stageAiAnalyzing: "Gemini AI পাতার রোগ পরীক্ষা করছে...",
+    stageAiAnalyzing: "ফসলের স্বাস্থ্য ও লক্ষণ বিশ্লেষণ হচ্ছে...",
     stageGeneratingInsights: "চিকিৎসা ও প্রতিরোধ পরিকল্পনা তৈরি করা হচ্ছে...",
     openLiveCamera: "লাইভ ক্যামেরা ভিউফাইন্ডার",
     switchCamera: "ক্যামেরা পরিবর্তন করুন",
@@ -1721,6 +1742,13 @@ export const translations: Record<Language, TranslationKeys> = {
     criticalAlertsSub: "জরুরি রোগ সনাক্তকরণ",
     weeklySummariesPref: "সাপ্তাহিক সারসংক্ষেপ",
     weeklySummariesSub: "ফসল স্বাস্থ্য ডাইজেস্ট",
+    appearance: "অ্যাপিয়ারেন্স (Appearance)",
+    themeSystem: "সিস্টেম (System)",
+    themeLight: "লাইট (Light)",
+    themeDark: "ডার্ক (Dark)",
+    themeSystemDesc: "ডিভাইস বা ব্রাউজার ডিসপ্লে সেটিংস স্বয়ংক্রিয়ভাবে অনুসরণ করে",
+    themeLightDesc: "স্বাভাবিক, পরিষ্কার ও উজ্জ্বল ডে মোড",
+    themeDarkDesc: "গভীর বোটানিক্যাল নাইট মোড, রাতে দেখার জন্য উপযোগী",
     needSupport: "সহায়তা প্রয়োজন?",
     supportSub: "ব্যক্তিগতকৃত ফসল পরামর্শের জন্য আমাদের কৃষি বিশেষজ্ঞদের সাথে যোগাযোগ করুন।",
     contactSupport: "সহায়তায় যোগাযোগ করুন",
@@ -1766,8 +1794,8 @@ export const translations: Record<Language, TranslationKeys> = {
     activePlots: "সক্রিয় প্লট",
     scannedCrops: "স্ক্যান করা ফসল",
 
-    aiAssistant: "AI সহায়ক",
-    askAgriSight: "AgriSight AI-কে জিজ্ঞাসা করুন",
+    aiAssistant: "AgriSight সহায়ক",
+    askAgriSight: "AgriSight-কে জিজ্ঞাসা করুন",
     typeYourQuestion: "আপনার ফসল, রোগ বা খামার সম্পর্কে জিজ্ঞাসা করুন...",
     suggestedQuestions: "পরামর্শকৃত প্রশ্নসমূহ",
     groundedAnswer: "আপনার AgriSight ডেটার ভিত্তিতে",

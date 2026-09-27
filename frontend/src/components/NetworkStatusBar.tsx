@@ -59,29 +59,29 @@ export function NetworkStatusBar() {
     language === "bn"
       ? "সংযোগ করতে অক্ষম"
       : language === "hi"
-      ? "कनेक्ट करने में असमर्थ"
-      : "Unable to Connect";
+        ? "कनेक्ट करने में असमर्थ"
+        : "Unable to Connect";
 
   const offlineMessage =
     language === "bn"
       ? "আপনার ইন্টারনেট সংযোগ পরীক্ষা করে পুনরায় চেষ্টা করুন।"
       : language === "hi"
-      ? "अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।"
-      : "Check your internet connection and try again.";
+        ? "अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।"
+        : "Check your internet connection and try again.";
 
   const onlineTitle =
     language === "bn"
       ? "সংযোগ ফিরে এসেছে"
       : language === "hi"
-      ? "कनेक्शन बहाल"
-      : "Connection Restored";
+        ? "कनेक्शन बहाल"
+        : "Connection Restored";
 
   const onlineMessage =
     language === "bn"
       ? "AgriSight ক্লাউডের সাথে সংযুক্ত।"
       : language === "hi"
-      ? "AgriSight क्लाउड से पुनः कनेक्ट हो गया।"
-      : "Connected to AgriSight cloud.";
+        ? "AgriSight क्लाउड से पुनः कनेक्ट हो गया।"
+        : "Connected to AgriSight cloud.";
 
   return (
     <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-md animate-in slide-in-from-top-4 duration-300 pointer-events-none">

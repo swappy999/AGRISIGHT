@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useTranslation, Language } from "@/context/LanguageContext";
+import { useTheme, Theme } from "@/context/ThemeContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
@@ -13,6 +14,7 @@ interface TopAppBarProps {
 export function TopAppBar({ onOpenMobileNav }: TopAppBarProps) {
   const { user, profile, logout } = useAuth();
   const { t, language, setLanguage } = useTranslation();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
   const [searchValue, setSearchValue] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -130,6 +132,27 @@ export function TopAppBar({ onOpenMobileNav }: TopAppBarProps) {
           <span className="material-symbols-outlined text-xl">notifications</span>
         </Link>
 
+        {/* Quick Theme Toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            const nextTheme: Theme =
+              theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+            setTheme(nextTheme);
+          }}
+          aria-label={`Current theme: ${theme}. Click to switch theme.`}
+          title={`Theme: ${theme.toUpperCase()} (${resolvedTheme === "dark" ? "Dark" : "Light"})`}
+          className="touch-target w-11 h-11 rounded-full bg-surface-container-high text-on-surface-variant hover:text-primary hover:bg-surface-container-highest flex items-center justify-center transition-colors shadow-sm"
+        >
+          <span className="material-symbols-outlined text-xl">
+            {theme === "system"
+              ? "brightness_auto"
+              : resolvedTheme === "dark"
+              ? "dark_mode"
+              : "light_mode"}
+          </span>
+        </button>
+
         {/* Profile Avatar & Interactive Menu (§15) */}
         <div className="relative" ref={menuRef}>
           <button
@@ -184,6 +207,43 @@ export function TopAppBar({ onOpenMobileNav }: TopAppBarProps) {
                   <p className="text-xs text-on-surface-variant truncate font-medium">
                     {userEmail}
                   </p>
+                </div>
+              </div>
+
+              {/* Appearance Selector */}
+              <div className="space-y-1.5 px-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant">
+                    {t("appearance")}
+                  </p>
+                  <span className="text-[10px] font-bold text-primary">
+                    {theme === "system" ? "Auto" : theme === "dark" ? "Dark" : "Light"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label={t("appearance")}>
+                  {[
+                    { id: "system" as Theme, label: t("themeSystem"), icon: "brightness_auto" },
+                    { id: "light" as Theme, label: t("themeLight"), icon: "light_mode" },
+                    { id: "dark" as Theme, label: t("themeDark"), icon: "dark_mode" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={theme === opt.id}
+                      onClick={() => setTheme(opt.id)}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none ${
+                        theme === opt.id
+                          ? "bg-primary text-on-primary shadow-xs"
+                          : "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[14px]">
+                        {opt.icon}
+                      </span>
+                      <span className="truncate">{opt.label.split(" ")[0]}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

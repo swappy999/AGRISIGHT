@@ -113,7 +113,7 @@ function AuthCallbackContent() {
         };
 
         // Check if session was already detected/established
-        let { data: { session: existingSession } } = await getSafeSession();
+        const { data: { session: existingSession } } = await getSafeSession();
 
         // PKCE Code Exchange flow
         if (code && !existingSession) {

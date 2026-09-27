@@ -2,9 +2,10 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import { Language, LanguageConfig, LANGUAGE_CONFIG, translations, translateDynamicContent, formatLocalizedNumber } from "@/translations";
+import { LanguageService, AppLanguage } from "@/lib/languageService";
 
-export type { Language, LanguageConfig };
-export { LANGUAGE_CONFIG };
+export type { Language, LanguageConfig, AppLanguage };
+export { LANGUAGE_CONFIG, LanguageService };
 
 interface LanguageContextType {
   language: Language;
@@ -23,43 +24,26 @@ const LanguageContext = createContext<LanguageContextType>({
 });
 
 export const LanguageProvider = ({ children }: { children: React.ReactNode }) => {
-  // Always initialize to 'en' during SSR and initial client frame to prevent hydration mismatch
+  // Always initialize to 'en' during SSR to prevent hydration mismatch
   const [language, setLanguageState] = useState<Language>("en");
 
   useEffect(() => {
-    try {
-      const saved = (localStorage.getItem("agrisight_lang") || localStorage.getItem("agrisight_language")) as Language;
-      if (saved && ["en", "hi", "bn"].includes(saved)) {
-        setLanguageState(saved);
-      }
-    } catch {}
+    // Sync with LanguageService
+    const current = LanguageService.getCurrentLanguage();
+    setLanguageState(current);
 
-    const handleLanguageChange = () => {
-      try {
-        const saved = (localStorage.getItem("agrisight_lang") || localStorage.getItem("agrisight_language")) as Language;
-        if (saved && ["en", "hi", "bn"].includes(saved)) {
-          setLanguageState(saved);
-        }
-      } catch {}
-    };
+    const unsubscribe = LanguageService.subscribe((newLang) => {
+      setLanguageState(newLang);
+    });
 
-    window.addEventListener("languagechange", handleLanguageChange);
-    window.addEventListener("storage", handleLanguageChange);
     return () => {
-      window.removeEventListener("languagechange", handleLanguageChange);
-      window.removeEventListener("storage", handleLanguageChange);
+      unsubscribe();
     };
   }, []);
 
   const setLanguage = (lang: Language) => {
+    LanguageService.setLanguage(lang as AppLanguage);
     setLanguageState(lang);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("agrisight_lang", lang);
-        localStorage.setItem("agrisight_language", lang);
-        window.dispatchEvent(new Event("languagechange"));
-      } catch {}
-    }
   };
 
   const t = (key: keyof typeof translations["en"], params?: Record<string, string | number>): string => {

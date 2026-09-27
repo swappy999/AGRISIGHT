@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, :where(.dark *)));
+
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
   font-weight: normal;
@@ -16,61 +18,208 @@
   -webkit-font-smoothing: antialiased;
 }
 
+:root {
+  /* ── AgriSight Light Mode Master Palette ── */
+  --background: #F5F2EA;
+  --foreground: #101614;
+
+  --surface: #F5F2EA;
+  --surface-bright: #FFFFFF;
+  --surface-dim: #E4E8E1;
+  --surface-container-lowest: #FFFFFF;
+  --surface-container-low: #EFECE4;
+  --surface-container: #E8E4DA;
+  --surface-container-high: #DFDBD0;
+  --surface-container-highest: #D5D1C6;
+
+  --on-surface: #101614;
+  --on-surface-variant: #5F7D68;
+  --outline: #707E74;
+  --outline-variant: #C0CAC2;
+  --border: #C0CAC2;
+
+  --primary: #173B2E;
+  --primary-hover: #0F2A21;
+  --primary-container: #1E5A3F;
+  --on-primary: #FFFFFF;
+  --on-primary-container: #BBF7D0;
+
+  --secondary: #3B5344;
+  --secondary-container: #D2E7D8;
+  --on-secondary: #FFFFFF;
+  --on-secondary-container: #1B3325;
+
+  /* Semantic State Colors */
+  --healthy: #16A34A;
+  --healthy-bg: #F0FDF4;
+  --healthy-border: #BBF7D0;
+  --healthy-text: #15803D;
+
+  --attention: #C69A45;
+  --attention-bg: #FFFBEB;
+  --attention-border: #FDE68A;
+  --attention-text: #B45309;
+
+  --warning: #EA580C;
+  --warning-bg: #FFF7ED;
+  --warning-border: #FED7AA;
+  --warning-text: #C2410C;
+
+  --error: #B94A48;
+  --error-container: #FEE2E2;
+  --on-error: #FFFFFF;
+  --on-error-container: #991B1B;
+  --error-border: #FECACA;
+  --error-text: #B91C1C;
+
+  --info: #0284C7;
+  --info-bg: #F0F9FF;
+  --info-border: #BAE6FD;
+  --info-text: #0369A1;
+
+  --deep-botanical: #173B2E;
+  --muted-botanical: #5F7D68;
+  --sage: #A8B7A7;
+  --clay: #A8795D;
+  --amber: #C69A45;
+  --critical: #B94A48;
+}
+
+.dark {
+  /* ── AgriSight Dark Mode Master Palette ── */
+  --background: #0B1110;
+  --foreground: #F2F4ED;
+
+  --surface: #14211C;
+  --surface-bright: #182820;
+  --surface-dim: #0B1110;
+  --surface-container-lowest: #0B1110;
+  --surface-container-low: #101A17;
+  --surface-container: #14211C;
+  --surface-container-high: #182820;
+  --surface-container-highest: #22352B;
+
+  --on-surface: #F2F4ED;
+  --on-surface-variant: #B8C4BB;
+  --muted-text: #84958B;
+  --outline: #84958B;
+  --outline-variant: #26372F;
+  --border: #26372F;
+
+  --primary: #5FAE72;
+  --primary-hover: #78C887;
+  --primary-container: #173B2E;
+  --on-primary: #0B1110;
+  --on-primary-container: #F2F4ED;
+
+  --secondary: #7FA88A;
+  --secondary-container: #1A2F25;
+  --on-secondary: #0B1110;
+  --on-secondary-container: #B8C4BB;
+
+  /* Semantic State Colors */
+  --healthy: #5FAE72;
+  --healthy-bg: #10241A;
+  --healthy-border: #264A35;
+  --healthy-text: #78C887;
+
+  --attention: #D2A84E;
+  --attention-bg: #261F10;
+  --attention-border: #4D3D1B;
+  --attention-text: #E5BE6B;
+
+  --warning: #B98262;
+  --warning-bg: #2A1D15;
+  --warning-border: #523727;
+  --warning-text: #D4A386;
+
+  --error: #D96863;
+  --error-container: #2A1414;
+  --on-error: #FFFFFF;
+  --on-error-container: #FCA5A5;
+  --error-border: #5A2726;
+  --error-text: #F87171;
+
+  --info: #38BDF8;
+  --info-bg: #0C212E;
+  --info-border: #15425C;
+  --info-text: #7DD3FC;
+
+  --deep-botanical: #173B2E;
+  --muted-botanical: #84958B;
+  --sage: #7FA88A;
+  --clay: #B98262;
+  --amber: #D2A84E;
+  --critical: #D96863;
+}
+
 @theme {
-  /* ── 1. Farmer-First Semantic & Surface Palette ── */
-  --color-primary: #0f5238;
-  --color-primary-hover: #0a3d2a;
-  --color-primary-container: #1e5a3f;
-  --color-on-primary: #ffffff;
-  --color-on-primary-container: #bbf7d0;
+  /* ── 1. Semantic & Surface Palette mapped to dynamic CSS variables ── */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary: var(--on-primary);
+  --color-on-primary-container: var(--on-primary-container);
 
-  --color-secondary: #3b5344;
-  --color-secondary-container: #d2e7d8;
-  --color-on-secondary: #ffffff;
-  --color-on-secondary-container: #1b3325;
+  --color-secondary: var(--secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary: var(--on-secondary);
+  --color-on-secondary-container: var(--on-secondary-container);
 
-  /* Semantic State Colors (Health, Risks, Statuses) */
-  --color-healthy: #16a34a;
-  --color-healthy-bg: #f0fdf4;
-  --color-healthy-border: #bbf7d0;
-  --color-healthy-text: #15803d;
+  /* Semantic State Colors */
+  --color-healthy: var(--healthy);
+  --color-healthy-bg: var(--healthy-bg);
+  --color-healthy-border: var(--healthy-border);
+  --color-healthy-text: var(--healthy-text);
 
-  --color-attention: #d97706;
-  --color-attention-bg: #fffbeb;
-  --color-attention-border: #fde68a;
-  --color-attention-text: #b45309;
+  --color-attention: var(--attention);
+  --color-attention-bg: var(--attention-bg);
+  --color-attention-border: var(--attention-border);
+  --color-attention-text: var(--attention-text);
 
-  --color-warning: #ea580c;
-  --color-warning-bg: #fff7ed;
-  --color-warning-border: #fed7aa;
-  --color-warning-text: #c2410c;
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-warning-text: var(--warning-text);
 
-  --color-error: #dc2626;
-  --color-error-container: #fee2e2;
-  --color-on-error: #ffffff;
-  --color-on-error-container: #991b1b;
-  --color-error-border: #fecaca;
-  --color-error-text: #b91c1c;
+  --color-error: var(--error);
+  --color-error-container: var(--error-container);
+  --color-on-error: var(--on-error);
+  --color-on-error-container: var(--on-error-container);
+  --color-error-border: var(--error-border);
+  --color-error-text: var(--error-text);
 
-  --color-info: #0284c7;
-  --color-info-bg: #f0f9ff;
-  --color-info-border: #bae6fd;
-  --color-info-text: #0369a1;
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+  --color-info-text: var(--info-text);
 
-  /* Surfaces & High-Contrast Neutrals (Outdoor Sunlight Legibility) */
-  --color-surface: #f8faf6;
-  --color-surface-bright: #ffffff;
-  --color-surface-dim: #e4e8e1;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f1f4ee;
-  --color-surface-container: #ebefe8;
-  --color-surface-container-high: #e2e7df;
-  --color-surface-container-highest: #d9ded6;
+  /* Surfaces & High-Contrast Neutrals */
+  --color-surface: var(--surface);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
 
-  --color-on-surface: #121714;
-  --color-on-surface-variant: #3a473e;
-  --color-outline: #707e74;
-  --color-outline-variant: #c0cac2;
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+
+  --color-botanical-deep: var(--deep-botanical);
+  --color-botanical-muted: var(--muted-botanical);
+  --color-sage: var(--sage);
+  --color-clay: var(--clay);
+  --color-amber: var(--amber);
+  --color-critical: var(--critical);
+
   /* ── 2. Radii Tokens ── */
   --radius-xs: 0.375rem;
   --radius-sm: 0.5rem;

@@ -17,21 +17,46 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
   const [data, setData] = useState<WeatherIntelligenceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
   const loadWeather = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(false);
+      setLocationDenied(false);
 
-      let lat = 22.57;
-      let lon = 88.36;
+      if (typeof window === "undefined" || !("geolocation" in navigator)) {
+        setLocationDenied(true);
+        setLoading(false);
+        return;
+      }
 
-      if (typeof window !== "undefined" && "geolocation" in navigator) {
+      let lat: number;
+      let lon: number;
+
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 8000,
+            maximumAge: 60000,
+            enableHighAccuracy: true,
+          });
+        });
+        lat = pos.coords.latitude;
+        lon = pos.coords.longitude;
+      } catch (geoErr: any) {
+        // PERMISSION_DENIED = 1
+        if (geoErr?.code === 1) {
+          setLocationDenied(true);
+          setLoading(false);
+          return;
+        }
+        // TIMEOUT or POSITION_UNAVAILABLE — try low-accuracy fallback
         try {
           const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
-              timeout: 2000,
+              timeout: 5000,
               maximumAge: 300000,
               enableHighAccuracy: false,
             });
@@ -39,7 +64,9 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
           lat = pos.coords.latitude;
           lon = pos.coords.longitude;
         } catch {
-          // Silently fallback to regional coordinates
+          setLocationDenied(true);
+          setLoading(false);
+          return;
         }
       }
 
@@ -89,9 +116,52 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
           {language === "bn"
             ? "আবহাওয়ার তথ্য লোড হচ্ছে..."
             : language === "hi"
-            ? "मौसम की जानकारी लोड हो रही है..."
-            : "Loading agricultural weather..."}
+              ? "मौसम की जानकारी लोड हो रही है..."
+              : "Loading weather..."}
         </span>
+      </div>
+    );
+  }
+
+  if (locationDenied) {
+    return (
+      <div className="farmer-card space-y-4">
+        <div className="flex flex-col items-start gap-3">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant shrink-0">
+              <span className="material-symbols-outlined text-xl">location_off</span>
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm text-on-surface">
+                {language === "bn"
+                  ? "অবস্থান অনুপলব্ধ"
+                  : language === "hi"
+                    ? "स्थान अनुपलब्ध"
+                    : "Location unavailable"}
+              </h3>
+              <p className="text-xs text-on-surface-variant font-medium mt-0.5">
+                {language === "bn"
+                  ? "স্থানীয় আবহাওয়া এবং মাঠের পরিস্থিতি প্রদানের জন্য ব্যবহৃত হয়।"
+                  : language === "hi"
+                    ? "स्थानीय मौसम और खेत की स्थिति प्रदान करने के लिए उपयोग किया जाता है।"
+                    : "Used to provide local weather and field conditions."}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => loadWeather(true)}
+            className="btn-farmer-secondary text-xs px-3.5 py-2 flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-base">my_location</span>
+            <span>
+              {language === "bn"
+                ? "অবস্থান সক্ষম করুন"
+                : language === "hi"
+                  ? "स्थान सक्षम करें"
+                  : "Enable Location"}
+            </span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -109,15 +179,15 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
                 {language === "bn"
                   ? "আবহাওয়া সংযোগ বিচ্ছিন্ন"
                   : language === "hi"
-                  ? "मौसम सेवा ऑफ़लाइन"
-                  : "Weather Intelligence Offline"}
+                    ? "मौसम सेवा ऑफ़लाइन"
+                    : "Weather Intelligence Offline"}
               </h3>
               <p className="text-xs text-on-surface-variant font-medium mt-0.5">
                 {language === "bn"
                   ? "নেটওয়ার্ক চালু হলে পুনরায় চেষ্টা করুন বা রিফ্রেশ বাটনে চাপুন।"
                   : language === "hi"
-                  ? "इंटरनेट कनेक्ट होने पर पुनः प्रयास करें या रीफ़्रेश बटन दबाएं।"
-                  : "Tap retry once online to retrieve fresh atmospheric forecasts."}
+                    ? "इंटरनेट कनेक्ट होने पर पुनः प्रयास करें या रीफ़्रेश बटन दबाएं।"
+                    : "Tap retry once online to retrieve fresh atmospheric forecasts."}
               </p>
             </div>
           </div>
@@ -137,10 +207,10 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
     language === "bn"
       ? data.agriInsight.bn
       : language === "hi"
-      ? data.agriInsight.hi
-      : data.agriInsight.en;
+        ? data.agriInsight.hi
+        : data.agriInsight.en;
 
-  const displayLocation = customLocationName || data.locationName || "Kolkata, WB";
+  const displayLocation = customLocationName || data.locationName;
 
   return (
     <div className="farmer-card space-y-4 transition-all duration-300">
@@ -160,8 +230,8 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
               {language === "bn"
                 ? "ক্ষেতের পূর্বাভাস ও প্রতিকূলতার সতর্কতা"
                 : language === "hi"
-                ? "खेत का पूर्वानुमान और प्रतिकूलता चेतावनी"
-                : "Microclimate forecast & crop stress signals"}
+                  ? "खेत का पूर्वानुमान और प्रतिकूलता चेतावनी"
+                  : "Microclimate forecast & crop stress signals"}
             </p>
           </div>
         </div>
@@ -333,18 +403,17 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
               {language === "bn"
                 ? "৩-দিনের আবহাওয়ার পূর্বাভাস"
                 : language === "hi"
-                ? "3-दिवसीय मौसम पूर्वानुमान"
-                : "3-Day Atmospheric Forecast"}
+                  ? "3-दिवसीय मौसम पूर्वानुमान"
+                  : "3-Day Atmospheric Forecast"}
             </p>
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {data.forecast.map((f, i) => (
                 <div
                   key={f.date}
-                  className={`p-3 rounded-2xl border text-center space-y-1.5 transition-all ${
-                    i === 0
+                  className={`p-3 rounded-2xl border text-center space-y-1.5 transition-all ${i === 0
                       ? "bg-primary/5 border-primary/30 shadow-xs"
                       : "bg-surface-container-lowest border-outline-variant/15"
-                  }`}
+                    }`}
                 >
                   <p className="text-xs font-black text-on-surface truncate">
                     {translateDynamic(f.dayName)}
@@ -372,8 +441,8 @@ export function WeatherCard({ customLocationName }: WeatherCardProps = {}) {
               {language === "bn"
                 ? "পরিবেশগত ঝুঁকির বিস্তারিত তথ্য"
                 : language === "hi"
-                ? "पर्यावरणीय जोखिम विस्तृत विवरण"
-                : "Environmental Risk Breakdown"}
+                  ? "पर्यावरणीय जोखिम विस्तृत विवरण"
+                  : "Environmental Risk Breakdown"}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-medium text-on-surface">
               <div className="p-2.5 rounded-xl bg-surface-container-low/60 flex items-start gap-2 border border-outline-variant/10">

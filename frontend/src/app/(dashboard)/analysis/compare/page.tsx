@@ -56,12 +56,18 @@ function CompareContent() {
       setLoading(true);
       setError(null);
       if (scan1Id && scan2Id) {
-        const res = await api.compareAnalyses(scan1Id, scan2Id);
+        const [res, scans] = await Promise.all([
+          api.compareAnalyses(scan1Id, scan2Id),
+          api.getAnalyses().catch(() => []),
+        ]);
         setScan1(res.previous_scan);
         setScan2(res.current_scan);
         setComparison(res.comparison);
         setSelected1(res.previous_scan?.id || scan1Id);
         setSelected2(res.current_scan?.id || scan2Id);
+        if (Array.isArray(scans)) {
+          setAllScans(scans);
+        }
       } else {
         const scans = await api.getAnalyses();
         if (Array.isArray(scans)) {
@@ -205,7 +211,7 @@ function CompareContent() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Selector Bar if allScans are available */}
-        {allScans.length > 2 && (
+        {allScans.length >= 2 && (
           <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <span className="font-bold text-on-surface">{t("compareButton")}:</span>

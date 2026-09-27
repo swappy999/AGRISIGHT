@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/apiClient";
@@ -267,6 +267,135 @@ function ScanLeafCTA({
         </div>
       </div>
     </Link>
+  );
+}
+
+// ────────────────────────────────────────────────
+// Section: Field Alerts (P0 Priority)
+// ────────────────────────────────────────────────
+function FieldAlertsSection({
+  fieldId,
+  language,
+}: {
+  fieldId: string;
+  language: string;
+}) {
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const data = await api.getFieldAlerts(fieldId);
+      setAlerts(data || []);
+    } catch {
+      setAlerts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [fieldId]);
+
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts]);
+
+  const handleResolve = async (alertId: string) => {
+    await api.resolveAlert(alertId);
+    setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-surface-container-low border border-outline-variant/20 rounded-3xl p-5 animate-pulse flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-outline-variant/20" />
+        <div className="h-4 bg-outline-variant/20 rounded w-1/3" />
+      </div>
+    );
+  }
+
+  if (alerts.length === 0) {
+    return (
+      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="material-symbols-outlined text-emerald-600 text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+            check_circle
+          </span>
+          <div>
+            <p className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300">
+              {language === "bn" ? "জমিতে কোনো সক্রিয় ঝুঁকি বা সতর্কতা নেই" : language === "hi" ? "खेत में कोई सक्रिय चेतावनी नहीं है" : "Field in Good Standing — No Active Threats"}
+            </p>
+            <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400 font-medium">
+              {language === "bn" ? "মাটির আর্দ্রতা এবং ফসলের অবস্থা স্থিতিশীল।" : language === "hi" ? "नमी और फसल की स्थिति सामान्य है।" : "Soil moisture and crop canopy conditions are stable."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-amber-600 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+            notification_important
+          </span>
+          <h2 className="text-sm font-extrabold text-on-surface tracking-tight">
+            {language === "bn" ? "ক্ষেতের সতর্কতা ও ঝুঁকি" : language === "hi" ? "खेत चेतावनियां" : "Field Alerts & Stress Signals"}
+          </h2>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white">
+            {alerts.length}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-2.5">
+        {alerts.map((alert) => {
+          const isCritical = alert.severity === "critical";
+          const isWarning = alert.severity === "warning";
+          const borderColor = isCritical ? "border-rose-500/30 bg-rose-500/5" : isWarning ? "border-amber-500/30 bg-amber-500/5" : "border-emerald-500/30 bg-emerald-500/5";
+          const iconColor = isCritical ? "text-rose-600" : isWarning ? "text-amber-600" : "text-emerald-600";
+          const iconName = isCritical ? "crisis_alert" : isWarning ? "warning" : "info";
+
+          return (
+            <div
+              key={alert.id}
+              className={`p-4 rounded-2xl border ${borderColor} flex flex-col gap-2.5 transition-all`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <span className={`material-symbols-outlined text-xl shrink-0 mt-0.5 ${iconColor}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {iconName}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-on-surface leading-tight">
+                      {alert.title}
+                    </p>
+                    <p className="text-xs text-on-surface-variant font-medium mt-1 leading-snug">
+                      {alert.message}
+                    </p>
+                    {alert.action && (
+                      <div className="mt-2 text-[11px] font-bold text-primary bg-primary/10 rounded-xl px-2.5 py-1 inline-flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-xs">healing</span>
+                        <span>{alert.action}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleResolve(alert.id)}
+                  title={language === "bn" ? "সমাধান হয়েছে চিহ্নিত করুন" : language === "hi" ? "हल किया गया" : "Mark Resolved"}
+                  className="px-2.5 py-1 text-[11px] font-bold text-on-surface-variant hover:text-emerald-600 hover:bg-emerald-500/10 rounded-xl transition-colors shrink-0 border border-outline-variant/30"
+                >
+                  <span className="material-symbols-outlined text-xs align-middle mr-1">done_all</span>
+                  {language === "bn" ? "সমাধান" : language === "hi" ? "हल हुआ" : "Resolve"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1012,6 +1141,12 @@ export function FieldDetailClient() {
         cropName={primaryCrop ? translateDynamic(primaryCrop.name) : undefined}
         language={language}
         t={t}
+      />
+
+      {/* ── Field Alerts (P0 Priority) ── */}
+      <FieldAlertsSection
+        fieldId={field.id}
+        language={language}
       />
 
       {/* ── Crop Card ── */}

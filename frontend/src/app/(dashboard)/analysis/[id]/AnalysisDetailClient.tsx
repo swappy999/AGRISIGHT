@@ -120,9 +120,15 @@ interface RawAnalysisRecord {
 function mapAnalysis(data: RawAnalysisRecord, lang: Language = "en"): AnalysisData {
   const r: InnerAnalysisResult = data.result_json || data.result || {};
 
-  const isAgri = r.is_agricultural !== false && (data.disease || "").toLowerCase() !== "non-crop image";
   const rawImgType = (r.image_type || "LEAF").toString().trim().toUpperCase();
   const rawValStatus = (r.validation_status || "VALID").toString().trim().toUpperCase();
+  const isAgri =
+    r.is_agricultural !== false &&
+    r.status !== "non_crop" &&
+    rawValStatus !== "NON_CROP" &&
+    rawValStatus !== "REJECTED" &&
+    !["HUMAN", "OBJECT", "ANIMAL", "DOCUMENT", "SCREENSHOT", "NON_CROP"].includes(rawImgType) &&
+    (data.disease || "").toLowerCase() !== "non-crop image";
 
   const symptoms = Array.isArray(r.symptoms) && r.symptoms.length > 0 ? r.symptoms : [];
   const possibleCauses =
@@ -298,8 +304,10 @@ export function AnalysisDetailClient() {
 
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [progression, setProgression] = useState<ProgressionData | null>(null);
+  const [availablePriors, setAvailablePriors] = useState<Array<{ id: string; created_at: string; disease: string; severity: string; crop: string; image_url?: string }>>([]);
   const [_crops, setCrops] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
+  const [comparingLoading, setComparingLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveDetailView>("summary");
@@ -331,6 +339,9 @@ export function AnalysisDetailClient() {
         if (progData && progData.current_analysis) {
           setAnalysis(mapAnalysis(progData.current_analysis as RawAnalysisRecord, language));
           setProgression(progData.progression);
+          if (Array.isArray(progData.available_prior_scans)) {
+            setAvailablePriors(progData.available_prior_scans);
+          }
           setError(null);
           loadedData = true;
         } else {
@@ -339,6 +350,27 @@ export function AnalysisDetailClient() {
           setError(null);
           loadedData = true;
         }
+
+        // Resilient fallback for available prior scans if not yet loaded
+        if (!progData?.available_prior_scans?.length) {
+          api.getAnalyses().then((all) => {
+            if (Array.isArray(all)) {
+              const others = all
+                .filter((s: any) => s.id !== id)
+                .slice(0, 10)
+                .map((s: any) => ({
+                  id: s.id,
+                  created_at: s.created_at,
+                  disease: s.disease || "Healthy",
+                  severity: s.severity || "Low",
+                  crop: s.result_json?.crop || s.crop || "Crop",
+                  image_url: s.image_url || "",
+                }));
+              setAvailablePriors(others);
+            }
+          }).catch(() => {});
+        }
+
         if (Array.isArray(cropsList)) setCrops(cropsList);
       } catch (err: unknown) {
         // Resilient fallback from sessionStorage
@@ -360,6 +392,24 @@ export function AnalysisDetailClient() {
     }
     fetchData();
   }, [id, language]);
+
+  const handleSelectPriorScan = async (priorId: string) => {
+    if (!analysis) return;
+    try {
+      setComparingLoading(true);
+      const res = await api.compareAnalyses(priorId, analysis.id);
+      if (res && res.comparison) {
+        setProgression({
+          ...res.comparison,
+          previous_scan: res.previous_scan,
+        });
+      }
+    } catch (err) {
+      console.error("Comparison selection error:", err);
+    } finally {
+      setComparingLoading(false);
+    }
+  };
 
   // Agronomic Water & Weather Recommendation (Grounded, no fake sensors)
   const waterRecommendation = useMemo(() => {
@@ -389,20 +439,41 @@ export function AnalysisDetailClient() {
   // Pure derived state for localized summary and action (avoids hook order and HMR hook count issues)
   const isScriptMismatched = (() => {
     if (!analysis) return false;
-    const textToCheck = analysis.summary || analysis.farmerAnswer || "";
+    // Prefer farmer_answer in the current language if it's in the right script, else check summary
+    const bestText =
+      language === "bn"
+        ? (analysis.farmerAnswer || analysis.summary || "")
+        : language === "hi"
+        ? (analysis.farmerAnswer || analysis.summary || "")
+        : (analysis.summary || analysis.farmerAnswer || "");
+    const textToCheck = bestText;
     if (!textToCheck) return false;
     const hasBengali = /[\u0980-\u09FF]/.test(textToCheck);
     const hasDevanagari = /[\u0900-\u097F]/.test(textToCheck);
+    // If language is hi and text has Bengali but no Devanagari — wrong script
     if (language === "hi" && hasBengali && !hasDevanagari) return true;
+    // If language is bn and text has Devanagari but no Bengali — wrong script
     if (language === "bn" && hasDevanagari && !hasBengali) return true;
+    // If language is en and text has any non-Latin script — wrong script
     if (language === "en" && (hasBengali || hasDevanagari)) return true;
+    // NEW: If language is bn/hi and text has NO non-Latin characters at all — it's plain English, needs localization
+    if ((language === "bn" || language === "hi") && !hasBengali && !hasDevanagari && textToCheck.trim().length > 0) return true;
     return false;
   })();
 
   const displayedSummary = (() => {
     if (!analysis) return "";
-    if (!isScriptMismatched && (analysis.summary || analysis.farmerAnswer)) {
-      return analysis.summary || analysis.farmerAnswer;
+
+    // Try the best language-specific text from the backend first
+    const bestBackendText =
+      language === "bn"
+        ? (analysis.farmerAnswer || analysis.summary || "")
+        : language === "hi"
+        ? (analysis.farmerAnswer || analysis.summary || "")
+        : (analysis.summary || analysis.farmerAnswer || "");
+
+    if (!isScriptMismatched && bestBackendText) {
+      return bestBackendText;
     }
     
     const crop = translateDynamic(analysis.crop || "Crop");
@@ -452,10 +523,12 @@ export function AnalysisDetailClient() {
     
     const hasBengali = /[\u0980-\u09FF]/.test(rawAction);
     const hasDevanagari = /[\u0900-\u097F]/.test(rawAction);
-    const isActionMismatched = 
+    const isActionMismatched =
       (language === "hi" && hasBengali && !hasDevanagari) ||
       (language === "bn" && hasDevanagari && !hasBengali) ||
-      (language === "en" && (hasBengali || hasDevanagari));
+      (language === "en" && (hasBengali || hasDevanagari)) ||
+      // Plain English text when a non-English language is active
+      ((language === "bn" || language === "hi") && !hasBengali && !hasDevanagari && rawAction.trim().length > 0);
 
     if (!isActionMismatched) {
       return rawAction;
@@ -747,9 +820,17 @@ export function AnalysisDetailClient() {
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-900">
                 {t("low")} {t("confidence")}
               </span>
-              <h2 className="text-xl font-black text-on-surface">Analysis Inconclusive</h2>
+              <h2 className="text-xl font-black text-on-surface">
+                {language === "bn" ? "বিশ্লেষণ অনিশ্চিত" : language === "hi" ? "विश्लेषण अनिश्चित" : "Analysis Inconclusive"}
+              </h2>
               <p className="text-xs text-on-surface-variant font-medium leading-relaxed max-w-sm mx-auto">
-                {analysis.farmerAnswer || "The leaf angle or photo clarity was insufficient for a definitive diagnosis. Please take a closer photo."}
+                {(!analysis.farmerAnswer || isScriptMismatched)
+                  ? (language === "bn"
+                      ? "পাতার কোণ বা ছবির স্বচ্ছতা নিশ্চিত রোগ নির্ণয়ের জন্য যথেষ্ট ছিল না। একটি স্পষ্ট ও কাছের ছবি তুলুন।"
+                      : language === "hi"
+                      ? "पत्ती का कोण या फोटो की स्पष्टता निश्चित निदान के लिए पर्याप्त नहीं थी। कृपया एक स्पष्ट और करीब से खींची गई फोटो लें।"
+                      : "The leaf angle or photo clarity was insufficient for a definitive diagnosis. Please take a closer photo.")
+                  : analysis.farmerAnswer}
               </p>
             </div>
           </div>
@@ -1108,7 +1189,7 @@ export function AnalysisDetailClient() {
                   )}`}
                   className="w-full py-3.5 px-4 bg-primary/10 hover:bg-primary/20 text-primary font-black rounded-2xl flex items-center justify-center gap-2 transition-all text-xs"
                 >
-                  <span className="material-symbols-outlined text-base">smart_toy</span>
+                  <span className="material-symbols-outlined text-base">support_agent</span>
                   <span>{t("askAgriSight")}</span>
                 </Link>
 
@@ -1370,7 +1451,7 @@ export function AnalysisDetailClient() {
               className="w-full py-4 bg-primary text-on-primary font-black rounded-2xl flex items-center justify-center gap-2 shadow-md hover:opacity-90 active:scale-95 transition-all text-sm text-center"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
-                smart_toy
+                support_agent
               </span>
               {t("askAgriSight")}
             </Link>
@@ -1479,7 +1560,7 @@ export function AnalysisDetailClient() {
               className="w-full py-4 bg-primary text-on-primary font-black rounded-2xl flex items-center justify-center gap-2 shadow-md hover:opacity-90 active:scale-95 transition-all text-sm text-center"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
-                smart_toy
+                support_agent
               </span>
               {t("askAgriSight")}
             </Link>
@@ -1670,7 +1751,7 @@ export function AnalysisDetailClient() {
               className="w-full py-4 bg-primary text-on-primary font-black rounded-2xl flex items-center justify-center gap-2 shadow-md hover:opacity-90 active:scale-95 transition-all text-sm text-center"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
-                smart_toy
+                support_agent
               </span>
               {t("askAgriSight")}
             </Link>
@@ -1697,73 +1778,119 @@ export function AnalysisDetailClient() {
             </div>
 
             {/* Current vs Previous Comparison Cards */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {/* Current */}
-              <div className="bg-surface-container-low rounded-2xl p-3.5 space-y-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-primary">
-                  {language === "bn" ? "বর্তমান" : language === "hi" ? "वर्तमान" : "Current"}
-                </span>
-                <p className="text-xs font-bold text-on-surface">
-                  {new Date(analysis.scanDate).toLocaleDateString(language, { month: "short", day: "numeric" })}
-                </p>
-                <p className="text-xs font-extrabold text-on-surface truncate">
-                  {translateDynamic(analysis.condition)}
-                </p>
-                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${severityBadge.bg}`}>
-                  {translateDynamic(analysis.severity)}
-                </span>
+              <div className="bg-surface-container-low border border-primary/20 rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-primary flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    {language === "bn" ? "বর্তমান স্ক্যান" : language === "hi" ? "वर्तमान स्कैन" : "Current Scan"}
+                  </span>
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${severityBadge.bg}`}>
+                    {translateDynamic(analysis.severity)}
+                  </span>
+                </div>
+
+                {analysis.imageUrl && (
+                  <div className="relative w-full h-32 rounded-xl overflow-hidden bg-surface-container-highest border border-outline-variant/15">
+                    <Image src={analysis.imageUrl} alt={analysis.condition} fill className="object-cover" sizes="(max-width: 768px) 100vw, 400px" />
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-[11px] text-on-surface-variant font-semibold">
+                    {new Date(analysis.scanDate).toLocaleDateString(language, { month: "short", day: "numeric", year: "numeric" })}
+                  </p>
+                  <p className="text-sm font-extrabold text-on-surface truncate">
+                    {translateDynamic(analysis.condition)}
+                  </p>
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    {translateDynamic(analysis.crop)}
+                  </p>
+                </div>
               </div>
 
               {/* Previous */}
-              <div className="bg-surface-container-low rounded-2xl p-3.5 space-y-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
-                  {language === "bn" ? "পূর্ববর্তী" : language === "hi" ? "पिछला" : "Previous"}
-                </span>
-                {progression?.has_previous && progression.previous_scan ? (
-                  <>
-                    <p className="text-xs font-bold text-on-surface">
-                      {new Date(progression.previous_scan.created_at).toLocaleDateString(language, { month: "short", day: "numeric" })}
-                    </p>
-                    <p className="text-xs font-extrabold text-on-surface truncate">
-                      {translateDynamic(progression.previous_scan.disease || "Healthy")}
-                    </p>
-                    <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-surface-container-highest text-on-surface-variant">
+              <div className="bg-surface-container-low border border-outline-variant/25 rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                    {language === "bn" ? "পূর্ববর্তী স্ক্যান" : language === "hi" ? "पिछला स्कैन" : "Previous Scan"}
+                  </span>
+                  {progression?.has_previous && progression.previous_scan && (
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-surface-container-highest text-on-surface-variant">
                       {translateDynamic(progression.previous_scan.severity || "Low")}
                     </span>
+                  )}
+                </div>
+
+                {progression?.has_previous && progression.previous_scan ? (
+                  <>
+                    {progression.previous_scan.image_url ? (
+                      <div className="relative w-full h-32 rounded-xl overflow-hidden bg-surface-container-highest border border-outline-variant/15">
+                        <Image src={progression.previous_scan.image_url} alt={progression.previous_scan.disease || "Previous scan"} fill className="object-cover" sizes="(max-width: 768px) 100vw, 400px" />
+                      </div>
+                    ) : (
+                      <div className="w-full h-32 rounded-xl bg-surface-container-highest border border-outline-variant/15 flex items-center justify-center text-on-surface-variant">
+                        <span className="material-symbols-outlined text-3xl">image</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-[11px] text-on-surface-variant font-semibold">
+                        {new Date(progression.previous_scan.created_at).toLocaleDateString(language, { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                      <p className="text-sm font-extrabold text-on-surface truncate">
+                        {translateDynamic(progression.previous_scan.disease || "Healthy")}
+                      </p>
+                      <p className="text-xs text-on-surface-variant font-medium">
+                        {translateDynamic(progression.previous_scan.crop || analysis.crop)}
+                      </p>
+                    </div>
                   </>
                 ) : (
-                  <>
-                    <p className="text-xs font-bold text-on-surface-variant">—</p>
-                    <p className="text-xs font-medium text-on-surface-variant">
-                      {language === "bn" ? "কোন পূর্ববর্তী স্ক্যান নেই" : language === "hi" ? "कोई पिछला स्कैन नहीं" : "No prior scan"}
+                  <div className="h-44 flex flex-col items-center justify-center text-center p-3 space-y-1.5 bg-surface-container-high/30 rounded-xl border border-dashed border-outline-variant/30">
+                    <span className="material-symbols-outlined text-3xl text-on-surface-variant/40">history_toggle_off</span>
+                    <p className="text-xs font-bold text-on-surface">
+                      {language === "bn" ? "কোন পূর্ববর্তী স্ক্যান রেকর্ড নেই" : language === "hi" ? "कोई पिछला स्कैन रिकॉर्ड नहीं" : "No Prior Scan Auto-Linked"}
                     </p>
-                    <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-surface-container-highest text-on-surface-variant">
-                      {language === "bn" ? "বেসলাইন" : language === "hi" ? "बेसलाइन" : "Baseline"}
-                    </span>
-                  </>
+                    <p className="text-[11px] text-on-surface-variant font-medium max-w-[220px]">
+                      {language === "bn" ? "নিচের তালিকা থেকে একটি স্ক্যান নির্বাচন করে তুলনা করুন।" : language === "hi" ? "तुलना करने के लिए नीचे दी गई सूची से एक स्कैन चुनें।" : "Select any scan below to run a direct plant comparison."}
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Change Indicator */}
-            <div className="bg-surface-container-high/60 rounded-2xl p-4 flex items-center justify-between">
+            <div className={`p-4 rounded-2xl border flex items-center justify-between transition-colors ${
+              progression?.progression_status === "improving"
+                ? "bg-emerald-500/10 border-emerald-500/30"
+                : progression?.progression_status === "worsening"
+                ? "bg-rose-500/10 border-rose-500/30"
+                : "bg-surface-container-high/60 border-outline-variant/20"
+            }`}>
               <div className="space-y-0.5">
                 <p className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
-                  {language === "bn" ? "পরিবর্তন" : language === "hi" ? "बदलाव" : "Change"}
+                  {language === "bn" ? "স্বাস্থ্য গতিপথ / পরিবর্তন" : language === "hi" ? "स्वास्थ्य प्रक्षेपवक्र / बदलाव" : "Health Trajectory / Change"}
                 </p>
                 <p className="text-sm font-black text-on-surface">
                   {progression?.progression_status === "improving"
-                    ? (language === "bn" ? "↓ রোগের ঝুঁকি হ্রাস পেয়েছে" : language === "hi" ? "↓ बीमारी का जोखिम कम हुआ" : "↓ Disease Risk Reduced")
+                    ? (language === "bn" ? "↓ রোগের ঝুঁকি হ্রাস পেয়েছে (উন্নতি)" : language === "hi" ? "↓ बीमारी का जोखिम कम हुआ (सुधार)" : "↓ Disease Risk Reduced (Improving)")
                     : progression?.progression_status === "worsening"
-                    ? (language === "bn" ? "↑ রোগের ঝুঁকি বৃদ্ধি পেয়েছে" : language === "hi" ? "↑ बीमारी का जोखिम बढ़ा" : "↑ Disease Risk Increased")
+                    ? (language === "bn" ? "↑ রোগের ঝুঁকি বৃদ্ধি পেয়েছে (অবনতি)" : language === "hi" ? "↑ बीमारी का जोखिम बढ़ा (बिगड़ रहा है)" : "↑ Disease Risk Increased (Worsening)")
                     : (language === "bn" ? "→ স্থিতিশীল / কোনো বড় পরিবর্তন নেই" : language === "hi" ? "→ स्थिर / कोई बड़ा बदलाव नहीं" : "→ Stable / No Major Change")}
                 </p>
+                {progression?.progression_desc && (
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    {progression.progression_desc}
+                  </p>
+                )}
               </div>
               <span className={`text-2xl font-black ${
                 progression?.progression_status === "improving"
-                  ? "text-primary"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : progression?.progression_status === "worsening"
-                  ? "text-error"
+                  ? "text-rose-600 dark:text-rose-400"
                   : "text-on-surface-variant"
               }`}>
                 {progression?.progression_status === "improving" ? "↓" : progression?.progression_status === "worsening" ? "↑" : "→"}
@@ -1771,14 +1898,78 @@ export function AnalysisDetailClient() {
             </div>
 
             {/* Link to Full Comparison Page */}
-            {progression?.previous_scan && (
-              <Link
-                href={`/analysis/compare?scan1=${progression.previous_scan.id}&scan2=${analysis.id}`}
-                className="w-full py-3 bg-surface-container-high text-primary font-bold rounded-2xl flex items-center justify-center gap-1.5 hover:bg-surface-dim transition-all text-xs"
-              >
-                <span>{t("viewFullReport")} ({t("scanComparison")})</span>
-                <span className="material-symbols-outlined text-base">arrow_forward</span>
-              </Link>
+            <Link
+              href={
+                progression?.previous_scan
+                  ? `/analysis/compare?scan1=${progression.previous_scan.id}&scan2=${analysis.id}`
+                  : `/analysis/compare?scan2=${analysis.id}`
+              }
+              className="w-full py-3.5 bg-primary text-on-primary font-extrabold rounded-2xl flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all text-xs shadow-md"
+            >
+              <span className="material-symbols-outlined text-base">compare_arrows</span>
+              <span>{t("viewFullReport")} ({t("scanComparison")})</span>
+              <span className="material-symbols-outlined text-base">arrow_forward</span>
+            </Link>
+
+            {/* Select another prior scan from the farmer's history */}
+            {availablePriors.length > 0 && (
+              <div className="pt-4 border-t border-outline-variant/15 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-primary">history</span>
+                    {language === "bn" ? "অন্য স্ক্যানের সাথে তুলনা করুন" : language === "hi" ? "अन्य स्कैन के साथ तुलना करें" : "Compare With Another Scan"}
+                  </span>
+                  <span className="text-[11px] text-on-surface-variant font-medium">
+                    {language === "bn" ? "ক্লিক করে পরিবর্তন দেখুন" : language === "hi" ? "क्लिक करके बदलाव देखें" : "Click to compare"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
+                  {availablePriors.map((prior) => {
+                    const isCurrentComparison = progression?.previous_scan?.id === prior.id;
+                    const isPriorThreat = prior.severity === "high" || prior.severity === "critical" || prior.severity === "medium" || prior.severity === "moderate";
+                    return (
+                      <button
+                        key={prior.id}
+                        type="button"
+                        disabled={comparingLoading}
+                        onClick={() => handleSelectPriorScan(prior.id)}
+                        className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                          isCurrentComparison
+                            ? "bg-primary/10 border-primary ring-2 ring-primary/20 shadow-xs"
+                            : "bg-surface-container-high/40 hover:bg-surface-container-high border-outline-variant/20"
+                        }`}
+                      >
+                        {prior.image_url ? (
+                          <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-surface-container-highest">
+                            <Image src={prior.image_url} alt={prior.disease} fill className="object-cover" sizes="40px" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center shrink-0 text-on-surface-variant">
+                            <span className="material-symbols-outlined text-base">eco</span>
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-on-surface truncate">
+                            {translateDynamic(prior.disease)}
+                          </p>
+                          <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant">
+                            <span>{new Date(prior.created_at).toLocaleDateString(language, { month: "short", day: "numeric" })}</span>
+                            <span>·</span>
+                            <span className={`font-black ${isPriorThreat ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {translateDynamic(prior.severity)}
+                            </span>
+                          </div>
+                        </div>
+                        {isCurrentComparison ? (
+                          <span className="material-symbols-outlined text-primary text-base shrink-0">check_circle</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-on-surface-variant/40 text-base shrink-0">swap_horiz</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
 

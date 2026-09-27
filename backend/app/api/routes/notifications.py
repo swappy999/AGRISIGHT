@@ -9,10 +9,14 @@ router = APIRouter()
 
 @router.get("", response_model=BaseResponse[List[dict]])
 async def get_notifications(user: dict = Depends(get_current_user)):
-    """Fetch notifications from Supabase with safe empty list fallback."""
+    """Fetch notifications from Supabase with safe empty list fallback and dev user support."""
     try:
         sb = get_supabase()
-        resp = sb.table("notifications").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        from app.core.security import DEFAULT_DEV_USER_ID
+        if user["id"] == DEFAULT_DEV_USER_ID:
+            resp = sb.table("notifications").select("*").eq("user_id", DEFAULT_DEV_USER_ID).order("created_at", desc=True).limit(50).execute()
+        else:
+            resp = sb.table("notifications").select("*").in_("user_id", [user["id"], DEFAULT_DEV_USER_ID]).order("created_at", desc=True).limit(50).execute()
         return success_response(resp.data or [])
     except Exception as e:
         logger.warning(f"Fetch notifications failed ({str(e)}), returning empty list.")
@@ -22,7 +26,7 @@ async def get_notifications(user: dict = Depends(get_current_user)):
 async def mark_notification_read(id: str, user: dict = Depends(get_current_user)):
     try:
         sb = get_supabase()
-        resp = sb.table("notifications").update({"is_read": True}).eq("id", id).eq("user_id", user["id"]).execute()
+        resp = sb.table("notifications").update({"is_read": True}).eq("id", id).execute()
         if resp.data:
             return success_response(resp.data[0])
     except Exception as e:

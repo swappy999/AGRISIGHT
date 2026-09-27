@@ -2,10 +2,12 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "@/context/LanguageContext";
+import { useTheme, Theme } from "@/context/ThemeContext";
 import { Language, LANGUAGE_CONFIG } from "@/translations";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { AppUpdateService, UpdateInfo, CURRENT_APP_VERSION, CURRENT_VERSION_CODE } from "@/lib/updateService";
 
 const NOTIF_PREFS_KEY = "agrisight_notif_prefs";
 
@@ -20,6 +22,7 @@ function loadPrefs() {
 export default function ProfilePage() {
   const { user, profile, isVerified, logout, updateProfile, checkUsernameAvailable } = useAuth();
   const { t, language, setLanguage } = useTranslation();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
 
   // Notification prefs
@@ -32,6 +35,11 @@ export default function ProfilePage() {
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // App Update state (a2.md Section 29)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo>(() => AppUpdateService.getCachedInfo());
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateCheckedMsg, setUpdateCheckedMsg] = useState<string | null>(null);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -333,6 +341,98 @@ export default function ProfilePage() {
 
         {/* Preferences */}
         <div className="bg-surface-container-lowest p-8 lg:p-12 rounded-[2.5rem] shadow-sm border border-outline-variant/10 space-y-8">
+          {/* Appearance (Theme) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-extrabold text-on-surface tracking-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-3xl">palette</span>
+                {t("appearance")}
+              </h2>
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant">
+                {theme === "system"
+                  ? `${t("themeSystem")} (${resolvedTheme === "dark" ? t("themeDark") : t("themeLight")})`
+                  : theme === "dark"
+                  ? t("themeDark")
+                  : t("themeLight")}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3" role="radiogroup" aria-label={t("appearance")}>
+              {[
+                {
+                  id: "system" as Theme,
+                  label: t("themeSystem"),
+                  desc: t("themeSystemDesc"),
+                  icon: "brightness_auto",
+                },
+                {
+                  id: "light" as Theme,
+                  label: t("themeLight"),
+                  desc: t("themeLightDesc"),
+                  icon: "light_mode",
+                },
+                {
+                  id: "dark" as Theme,
+                  label: t("themeDark"),
+                  desc: t("themeDarkDesc"),
+                  icon: "dark_mode",
+                },
+              ].map((opt) => {
+                const isSelected = theme === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => setTheme(opt.id)}
+                    className={`p-4 lg:p-5 rounded-[1.5rem] font-bold transition-all duration-200 text-left flex items-center justify-between gap-4 border cursor-pointer ${
+                      isSelected
+                        ? "bg-primary/10 border-primary text-on-surface ring-2 ring-primary/30"
+                        : "bg-surface-container-low border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-high hover:border-outline-variant/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected
+                            ? "bg-primary text-on-primary shadow-sm"
+                            : "bg-surface-container-highest text-on-surface-variant"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-xl">
+                          {opt.icon}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-sm sm:text-base text-on-surface block">
+                          {opt.label}
+                        </span>
+                        <span className="text-xs text-on-surface-variant/80 font-medium block truncate">
+                          {opt.desc}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center shrink-0">
+                      <div
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary text-on-primary"
+                            : "border-outline-variant/60 bg-transparent"
+                        }`}
+                      >
+                        {isSelected && (
+                          <span className="w-2 h-2 rounded-full bg-on-primary" />
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Language */}
           <div className="space-y-4">
             <h2 className="text-xl font-extrabold text-on-surface tracking-tight flex items-center gap-2">
@@ -400,6 +500,100 @@ export default function ProfilePage() {
                   aria-label="Enable weekly summaries"
                 />
               </label>
+            </div>
+          </div>
+
+          {/* ── App Version & Updates (a2.md Section 27, 28, 29) ── */}
+          <div className="space-y-4 pt-2">
+            <h2 className="text-xl font-extrabold text-on-surface tracking-tight flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-3xl">system_update</span>
+              {language === "bn" ? "অ্যাপ সংস্করণ ও আপডেট" : language === "hi" ? "ऐप संस्करण एवं अपडेट" : "App Version & Updates"}
+            </h2>
+
+            <div className="p-5 lg:p-6 bg-surface-container-low rounded-[1.5rem] border border-outline-variant/15 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-extrabold text-on-surface block text-sm">
+                    AgriSight Mobile {CURRENT_APP_VERSION}
+                  </span>
+                  <span className="text-xs text-on-surface-variant font-medium">
+                    Build {CURRENT_VERSION_CODE} · {language === "bn" ? "অনলাইন ও অফলাইন ইঞ্জিনিয়ারিং" : language === "hi" ? "ऑनलाइन व ऑफलाइन सिस्टम" : "Online & Offline Production Build"}
+                  </span>
+                </div>
+                <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-black rounded-full uppercase tracking-wider">
+                  v{CURRENT_APP_VERSION}
+                </span>
+              </div>
+
+              {updateCheckedMsg && (
+                <div className="p-3 bg-surface-container-highest/60 rounded-xl text-xs font-bold text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-base">info</span>
+                  <span>{updateCheckedMsg}</span>
+                </div>
+              )}
+
+              {updateInfo.updateAvailable && (
+                <div className="p-4 bg-primary/10 border border-primary/20 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-primary font-black text-xs uppercase tracking-wider">
+                    <span className="material-symbols-outlined text-sm">download</span>
+                    {language === "bn" ? "নতুন আপডেট উপলব্ধ" : language === "hi" ? "नया अपडेट उपलब्ध है" : "New Update Available"}
+                  </div>
+                  <p className="text-xs text-on-surface-variant">
+                    {updateInfo.releaseNotes}
+                  </p>
+                  {updateInfo.downloadUrl && (
+                    <a
+                      href={updateInfo.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary font-bold text-xs rounded-xl shadow-md shadow-primary/25 hover:bg-primary/90 transition-all mt-1"
+                    >
+                      <span className="material-symbols-outlined text-sm">cloud_download</span>
+                      {language === "bn" ? "আপডেট ডাউনলোড করুন" : language === "hi" ? "अपडेट डाउनलोड करें" : "Download Update"}
+                    </a>
+                  )}
+                </div>
+              )}
+
+              <button
+                type="button"
+                disabled={isCheckingUpdate}
+                onClick={async () => {
+                  setIsCheckingUpdate(true);
+                  setUpdateCheckedMsg(null);
+                  try {
+                    const info = await AppUpdateService.checkForUpdates();
+                    setUpdateInfo(info);
+                    if (!info.updateAvailable) {
+                      setUpdateCheckedMsg(
+                        language === "bn"
+                          ? "আপনার অ্যাপটি সর্বশেষ সংস্করণে রয়েছে।"
+                          : language === "hi"
+                          ? "आपका ऐप नवीनतम संस्करण पर है।"
+                          : "You are running the latest version."
+                      );
+                    }
+                  } catch {
+                    setUpdateCheckedMsg(
+                      language === "bn"
+                        ? "আপডেট যাচাই করতে ব্যর্থ হয়েছে।"
+                        : language === "hi"
+                        ? "अपडेट जांचने में विफल।"
+                        : "Failed to check for updates."
+                    );
+                  } finally {
+                    setIsCheckingUpdate(false);
+                  }
+                }}
+                className="w-full py-3 px-4 bg-surface-container-highest text-on-surface font-bold text-xs rounded-xl hover:bg-surface-dim active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <span className={`material-symbols-outlined text-base ${isCheckingUpdate ? "animate-spin" : ""}`}>
+                  sync
+                </span>
+                {isCheckingUpdate
+                  ? (language === "bn" ? "যাচাই করা হচ্ছে..." : language === "hi" ? "जाँच हो रही है..." : "Checking for Updates...")
+                  : (language === "bn" ? "আপডেট পরীক্ষা করুন" : language === "hi" ? "अपडेट की जाँच करें" : "Check for Updates")}
+              </button>
             </div>
           </div>
         </div>

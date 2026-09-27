@@ -5,14 +5,13 @@ const config: CapacitorConfig = {
   appName: "AgriSight",
   webDir: "out",
   server: {
-    androidScheme: "http",
-    cleartext: true,
+    androidScheme: "https",
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
       launchAutoHide: true,
-      backgroundColor: "#0f5238",
+      backgroundColor: "#F8FAF6",
       androidSplashResourceName: "splash",
       androidScaleType: "CENTER_CROP",
       showSpinner: false,

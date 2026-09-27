@@ -7,6 +7,8 @@ import { useTranslation } from "@/context/LanguageContext";
 import { api } from "@/lib/apiClient";
 import { WeatherCard } from "@/components/WeatherCard";
 import { UploadCard } from "@/components/UploadCard";
+import { SensorService } from "@/lib/sensorService";
+import { SensorReading, HardwareStatus } from "@/lib/hardwareContracts";
 
 interface AlertItem {
   id: string;
@@ -24,20 +26,34 @@ export default function DashboardHome() {
   const [totalFields, setTotalFields] = useState<number>(0);
   const [fields, setFields] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [totalScans, setTotalScans] = useState<number>(0);
+  const [activeThreats, setActiveThreats] = useState<number>(0);
   const [loadingAlerts, setLoadingAlerts] = useState<boolean>(true);
   const [loadingFields, setLoadingFields] = useState<boolean>(true);
+  const [sensorReading, setSensorReading] = useState<SensorReading | null>(null);
+  const [hardwareStatus, setHardwareStatus] = useState<HardwareStatus | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadMinimalMetrics() {
       try {
-        const [fieldsData, notifsData] = await Promise.all([
+        const [fieldsData, notifsData, analysesData, readingsData, hwStatusData] = await Promise.all([
           api.getFields().catch(() => []),
           api.getNotifications().catch(() => []),
+          api.getAnalyses().catch(() => []),
+          SensorService.getLatestReadings().catch(() => []),
+          SensorService.getFieldHardwareStatus().catch(() => null),
         ]);
 
         if (cancelled) return;
+
+        if (Array.isArray(readingsData) && readingsData.length > 0) {
+          setSensorReading(readingsData[0]);
+        } else {
+          setSensorReading(null);
+        }
+        setHardwareStatus(hwStatusData);
 
         if (Array.isArray(fieldsData) && fieldsData.length > 0) {
           setTotalFields(fieldsData.length);
@@ -49,25 +65,77 @@ export default function DashboardHome() {
           setFields([]);
           setFarmHealth(null);
         }
-
-        if (Array.isArray(notifsData)) {
-          const mapped: AlertItem[] = notifsData.slice(0, 3).map((n: any) => ({
-            id: n.id,
-            type: n.type || "alert",
-            title:
-              n.type === "critical"
-                ? (language === "bn" ? "জরুরি সতর্কবার্তা" : language === "hi" ? "गंभीर चेतावनी" : "Critical Issue")
-                : n.type === "alert"
-                ? (language === "bn" ? "রোগ সতর্কতা" : language === "hi" ? "फसल चेतावनी" : "Crop Alert")
-                : (language === "bn" ? "বিজ্ঞপ্তি" : language === "hi" ? "सूचना" : "Notification"),
-            message: n.message || "",
-            timeLabel: n.created_at
-              ? new Date(n.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : "",
-            is_read: Boolean(n.is_read),
-          }));
-          setAlerts(mapped);
+        if (Array.isArray(analysesData)) {
+          setTotalScans(analysesData.length);
+          const threatsCount = analysesData.filter((s: any) => {
+            const r = s.result_json || s.result || {};
+            const sev = (r.severity || s.severity || "").toLowerCase();
+            const cond = (r.disease || r.condition || s.disease || "").toLowerCase();
+            const isAgri = r.is_agricultural !== false && !cond.includes("non-crop") && !cond.includes("not applicable");
+            const isHealthy = cond.includes("healthy") || cond.includes("routine");
+            return isAgri && !isHealthy && (sev === "critical" || sev === "high" || sev === "medium" || sev === "moderate" || sev === "severe");
+          }).length;
+          setActiveThreats(threatsCount);
         }
+
+        const combinedAlerts: AlertItem[] = [];
+        const seenIds = new Set<string>();
+
+        if (Array.isArray(notifsData) && notifsData.length > 0) {
+          for (const n of notifsData) {
+            seenIds.add(n.id);
+            combinedAlerts.push({
+              id: n.id,
+              type: n.type || "alert",
+              title:
+                n.title ||
+                (n.type === "critical"
+                  ? (language === "bn" ? "জরুরি সতর্কবার্তা" : language === "hi" ? "गंभीर चेतावनी" : "Critical Issue")
+                  : n.type === "alert"
+                  ? (language === "bn" ? "রোগ সতর্কতা" : language === "hi" ? "फसल चेतावनी" : "Crop Alert")
+                  : (language === "bn" ? "বিজ্ঞপ্তি" : language === "hi" ? "सूचना" : "Notification")),
+              message: n.message || "",
+              timeLabel: n.created_at
+                ? new Date(n.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "",
+              is_read: Boolean(n.is_read),
+            });
+          }
+        }
+
+        if (Array.isArray(analysesData) && analysesData.length > 0) {
+          for (const s of analysesData) {
+            const r = s.result_json || s.result || {};
+            const sev = (r.severity || s.severity || "").toLowerCase();
+            const cond = r.disease || r.condition || s.disease || "";
+            const crop = r.crop || s.crop_name || (language === "bn" ? "ফসল" : language === "hi" ? "फसल" : "Crop");
+            const condLower = cond.toLowerCase();
+            const isAgri = r.is_agricultural !== false && !condLower.includes("non-crop") && !condLower.includes("not applicable");
+            const isHealthy = condLower.includes("healthy") || condLower.includes("routine");
+            if (!isAgri || isHealthy || !cond) continue;
+
+            const isCritical = sev === "critical" || sev === "high" || sev === "severe";
+            if (!seenIds.has(s.id)) {
+              seenIds.add(s.id);
+              combinedAlerts.push({
+                id: s.id,
+                type: isCritical ? "critical" : "alert",
+                title: isCritical
+                  ? (language === "bn" ? "জরুরি রোগ সতর্কতা" : language === "hi" ? "गंभीर रोग चेतावनी" : "Critical Crop Threat")
+                  : (language === "bn" ? "রোগ সতর্কতা" : language === "hi" ? "फसल रोग चेतावनी" : "Crop Health Alert"),
+                message: `${cond} detected in ${crop}.`,
+                timeLabel: s.created_at
+                  ? new Date(s.created_at).toLocaleDateString(language === "bn" ? "bn-IN" : language === "hi" ? "hi-IN" : "en-IN", {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "",
+                is_read: false,
+              });
+            }
+          }
+        }
+        setAlerts(combinedAlerts.slice(0, 5));
       } catch {
         // Fallback silently without blocking UI shell
       } finally {
@@ -177,6 +245,34 @@ export default function DashboardHome() {
             >
               <span className="material-symbols-outlined text-base text-primary">add_location_alt</span>
               <span>{t("addField")}</span>
+            </Link>
+          )}
+
+          {totalScans > 0 && (
+            <Link
+              href="/analytics"
+              className="flex items-center gap-2 px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-2xl hover:border-primary/40 transition-all shadow-2xs"
+              title={t("totalScans")}
+            >
+              <span className="material-symbols-outlined text-primary text-base">document_scanner</span>
+              <div className="text-left">
+                <span className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant block leading-tight">{t("totalScans")}</span>
+                <span className="text-xs font-black text-on-surface leading-tight">{formatNumber(totalScans)}</span>
+              </div>
+            </Link>
+          )}
+
+          {activeThreats > 0 && (
+            <Link
+              href="/alerts"
+              className="flex items-center gap-2 px-3 py-2 bg-error/10 border border-error/30 rounded-2xl hover:border-error transition-all shadow-2xs"
+              title={t("activeThreats")}
+            >
+              <span className="material-symbols-outlined text-error text-base animate-pulse">warning</span>
+              <div className="text-left">
+                <span className="text-[10px] font-black uppercase tracking-wider text-error block leading-tight">{t("activeThreats")}</span>
+                <span className="text-xs font-black text-error leading-tight">{formatNumber(activeThreats)}</span>
+              </div>
             </Link>
           )}
 
@@ -412,7 +508,7 @@ export default function DashboardHome() {
             )}
           </div>
 
-          {/* ── 7. Small Sensor / IoT Placeholder (§3 Priority 6 & §28) ── */}
+          {/* ── 7. Sensor / IoT Node (§6 & §22: Honest Status, Zero Fake Numbers) ── */}
           <div className="farmer-card space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -427,59 +523,103 @@ export default function DashboardHome() {
                       {language === "bn" ? "আইওটি সেন্সর নোড" : language === "hi" ? "आईओटी सेंसर नोड" : "IoT Sensor Telemetry"}
                     </h2>
                     <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant">
-                      ESP32 • Node 01
+                      {hardwareStatus?.status === "online" ? "ESP32 • Online" : "Hardware • Standby"}
                     </span>
                   </div>
                   <p className="text-xs text-on-surface-variant font-medium">
-                    {language === "bn"
-                      ? "পরবর্তী হার্ডওয়্যার ফেজে সংযুক্ত করার জন্য প্রস্তুত নমুনা টেলিমেট্রি"
-                      : language === "hi"
-                      ? "अगले हार्डवेयर चरण में कनेक्ट होने वाला तैयार नमूना टेलीमेट्री"
-                      : "Hardware node placeholder ready for ESP32 pairing (Phase 13)"}
+                    {hardwareStatus?.status === "online"
+                      ? (language === "bn" ? "সংযুক্ত হার্ডওয়্যার নোড থেকে সক্রিয় ডেটা" : language === "hi" ? "सक्रिय रूप से कनेक्टेड हार्डवेयर नोड" : "Live data from active hardware node")
+                      : (language === "bn" ? "হার্ডওয়্যার সংযোগের জন্য প্রস্তুত (Section 22)" : language === "hi" ? "हार्डवेयर कनेक्शन के लिए तैयार (Section 22)" : "Hardware node ready for pairing without laptop mediation")}
                   </p>
                 </div>
               </div>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>{translateDynamic("Ready")}</span>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                hardwareStatus?.status === "online" ? "bg-emerald-500/10 text-emerald-700" : "bg-surface-container-highest text-on-surface-variant"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${hardwareStatus?.status === "online" ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"}`} />
+                <span>{hardwareStatus?.status === "online" ? translateDynamic("Connected") : (language === "bn" ? "সংযুক্ত নয়" : language === "hi" ? "कनेक्टेड नहीं" : "Not connected")}</span>
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Soil Moisture */}
               <div className="p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/20 space-y-1.5">
                 <div className="flex items-center justify-between text-on-surface-variant">
                   <span className="text-xs font-bold">{language === "bn" ? "মাটির আর্দ্রতা" : language === "hi" ? "मिट्टी की नमी" : "Soil Moisture"}</span>
                   <span className="material-symbols-outlined text-base text-sky-600">water_drop</span>
                 </div>
-                <p className="text-xl font-black text-on-surface tracking-tight">31.5%</p>
-                <p className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">check_circle</span>
-                  <span>{language === "bn" ? "অনুকূল মাত্রা" : language === "hi" ? "इष्टतम स्तर" : "Optimal (30-40%)"}</span>
-                </p>
+                {sensorReading && typeof sensorReading.soilMoisture === "number" ? (
+                  <>
+                    <p className="text-xl font-black text-on-surface tracking-tight">{sensorReading.soilMoisture.toFixed(1)}%</p>
+                    <p className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">check_circle</span>
+                      <span>{language === "bn" ? "সক্রিয় পরিমাপ" : language === "hi" ? "सक्रिय माप" : "Live verified reading"}</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-on-surface-variant tracking-tight">{language === "bn" ? "অনুপলব্ধ" : language === "hi" ? "अनुपलब्ध" : "Unavailable"}</p>
+                    <p className="text-[10px] text-on-surface-variant font-medium flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">sensors_off</span>
+                      <span>{language === "bn" ? "সেন্সর সংযুক্ত নয়" : language === "hi" ? "सेंसर कनेक्टेड नहीं" : "Sensor not connected"}</span>
+                    </p>
+                  </>
+                )}
               </div>
 
+              {/* Climate (Temp / Humidity) */}
               <div className="p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/20 space-y-1.5">
                 <div className="flex items-center justify-between text-on-surface-variant">
                   <span className="text-xs font-bold">{language === "bn" ? "তাপমাত্রা ও আর্দ্রতা" : language === "hi" ? "तापमान एवं आर्द्रता" : "DHT22 Climate"}</span>
                   <span className="material-symbols-outlined text-base text-amber-600">thermostat</span>
                 </div>
-                <p className="text-xl font-black text-on-surface tracking-tight">29.4°C <span className="text-sm font-semibold text-on-surface-variant">/ 67%</span></p>
-                <p className="text-[10px] text-on-surface-variant font-semibold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">info</span>
-                  <span>{language === "bn" ? "স্বাভাবিক পরিবেষ্টন" : language === "hi" ? "सामान्य परिवेश" : "Ambient Field Sensor"}</span>
-                </p>
+                {sensorReading && typeof sensorReading.temperature === "number" ? (
+                  <>
+                    <p className="text-xl font-black text-on-surface tracking-tight">
+                      {sensorReading.temperature.toFixed(1)}°C
+                      {typeof sensorReading.humidity === "number" && (
+                        <span className="text-sm font-semibold text-on-surface-variant"> / {sensorReading.humidity.toFixed(0)}%</span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-on-surface-variant font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">info</span>
+                      <span>{language === "bn" ? "সক্রিয় সেন্সর" : language === "hi" ? "सक्रिय सेंसर" : "Active field sensor"}</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-on-surface-variant tracking-tight">{language === "bn" ? "অনুপলব্ধ" : language === "hi" ? "अनुपलब्ध" : "Unavailable"}</p>
+                    <p className="text-[10px] text-on-surface-variant font-medium flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">sensors_off</span>
+                      <span>{language === "bn" ? "সেন্সর সংযুক্ত নয়" : language === "hi" ? "सेंसर कनेक्टेड नहीं" : "Sensor not connected"}</span>
+                    </p>
+                  </>
+                )}
               </div>
 
+              {/* Soil pH */}
               <div className="p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/20 space-y-1.5">
                 <div className="flex items-center justify-between text-on-surface-variant">
                   <span className="text-xs font-bold">{language === "bn" ? "মাটির পিএইচ" : language === "hi" ? "मिट्टी का पीएच" : "Soil pH"}</span>
                   <span className="material-symbols-outlined text-base text-emerald-600">science</span>
                 </div>
-                <p className="text-xl font-black text-on-surface tracking-tight">6.4 <span className="text-xs font-bold text-on-surface-variant">pH</span></p>
-                <p className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">check_circle</span>
-                  <span>{language === "bn" ? "সামান্য অম্লীয় (উপযুক্ত)" : language === "hi" ? "हल्का अम्लीय (उपयुक्त)" : "Slightly Acidic (Target)"}</span>
-                </p>
+                {sensorReading && typeof sensorReading.soilPH === "number" ? (
+                  <>
+                    <p className="text-xl font-black text-on-surface tracking-tight">{sensorReading.soilPH.toFixed(1)} <span className="text-xs font-bold text-on-surface-variant">pH</span></p>
+                    <p className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">check_circle</span>
+                      <span>{language === "bn" ? "পরিমাপিত মান" : language === "hi" ? "मापा गया मान" : "Measured value"}</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-on-surface-variant tracking-tight">{language === "bn" ? "অনুপলব্ধ" : language === "hi" ? "अनुपलब्ध" : "Unavailable"}</p>
+                    <p className="text-[10px] text-on-surface-variant font-medium flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">sensors_off</span>
+                      <span>{language === "bn" ? "সেন্সর সংযুক্ত নয়" : language === "hi" ? "सेंसर कनेक्टेड नहीं" : "Sensor not connected"}</span>
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>

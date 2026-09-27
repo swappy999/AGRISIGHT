@@ -36,7 +36,7 @@ echo.
 echo ------------------------------------------
 echo Status: Services launched in separate windows.
 echo Local PC:      http://localhost:3000
-echo Mobile Phone:  http://192.168.1.7:3000
+echo Mobile Phone:  Use your local WiFi IP or run start_mobile.bat for HTTPS tunnel
 echo API Docs:      http://localhost:8000/docs
 echo ------------------------------------------
 echo.

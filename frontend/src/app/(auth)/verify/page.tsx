@@ -73,9 +73,9 @@ function VerifyEmailContent() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background p-6">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-surface p-6">
       <div className="max-w-md w-full mx-auto">
-        <div className="rounded-3xl shadow-xl p-8 bg-white space-y-6 border border-outline-variant/10 text-center">
+        <div className="rounded-3xl shadow-xl p-8 bg-surface-bright space-y-6 border border-outline-variant/30 text-center">
           <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto">
             <span className="material-symbols-outlined text-4xl">mark_email_unread</span>
           </div>
@@ -91,8 +91,8 @@ function VerifyEmailContent() {
           </div>
 
           {isConfirmedParam && (
-            <div className="bg-emerald-50 text-emerald-800 p-4 rounded-2xl text-sm font-bold flex items-center gap-2 border border-emerald-200">
-              <span className="material-symbols-outlined text-emerald-600">check_circle</span>
+            <div className="bg-healthy-bg text-healthy-text p-4 rounded-2xl text-sm font-bold flex items-center gap-2 border border-healthy-border">
+              <span className="material-symbols-outlined text-healthy">check_circle</span>
               Email verified! Redirecting to dashboard...
             </div>
           )}

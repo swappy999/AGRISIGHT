@@ -15,44 +15,6 @@ export interface UserProfile {
   username?: string | null;
 }
 
-export const GUEST_USER = {
-  id: "6013231d-43ee-47c2-8803-ba486258cc18",
-  app_metadata: { provider: "guest", providers: ["guest"] },
-  user_metadata: {
-    full_name: "Guest Farmer",
-    name: "Guest Farmer",
-    username: "guest_farmer",
-    preferred_language: "en",
-  },
-  aud: "authenticated",
-  confirmation_sent_at: "2026-01-01T00:00:00Z",
-  confirmed_at: "2026-01-01T00:00:00Z",
-  email_confirmed_at: "2026-01-01T00:00:00Z",
-  created_at: "2026-01-01T00:00:00Z",
-  updated_at: "2026-01-01T00:00:00Z",
-  email: "guest@agrisight.local",
-  phone: "",
-  role: "authenticated",
-} as unknown as User;
-
-export const GUEST_SESSION = {
-  access_token: "guest-preview-token",
-  token_type: "bearer",
-  expires_in: 31536000,
-  expires_at: 1999999999,
-  refresh_token: "guest-preview-refresh-token",
-  user: GUEST_USER,
-} as unknown as Session;
-
-export const GUEST_PROFILE: UserProfile = {
-  id: "6013231d-43ee-47c2-8803-ba486258cc18",
-  fullName: "Guest Farmer",
-  email: "guest@agrisight.local",
-  avatarUrl: null,
-  preferredLanguage: "en",
-  username: "guest_farmer",
-};
-
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -62,7 +24,6 @@ interface AuthContextType {
   logout: () => Promise<void>;
   signUp: (email: string, password: string, fullName: string, username?: string) => Promise<{ data: unknown; error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
-  signInAsGuest: () => void;
   updateProfile: (updates: {
     fullName?: string;
     username?: string;
@@ -84,7 +45,6 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   signUp: async () => ({ data: null, error: null }),
   signInWithGoogle: async () => ({ error: null }),
-  signInAsGuest: () => {},
   updateProfile: async () => ({ error: null }),
   checkUsernameAvailable: async () => false,
   resendVerificationEmail: async () => ({ error: null }),
@@ -103,8 +63,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     user?.app_metadata?.provider === "google" ||
     (Array.isArray(user?.app_metadata?.providers) && user.app_metadata.providers.includes("google"))
   );
-  const isGuestUser = Boolean(user?.app_metadata?.provider === "guest");
-  const isVerified = Boolean(user?.email_confirmed_at || user?.confirmed_at || isGoogleUser || isGuestUser);
+  const isVerified = Boolean(user?.email_confirmed_at || user?.confirmed_at || isGoogleUser);
 
   const fetchProfile = useCallback(async (currentUser: User) => {
     const fallbackProfile: UserProfile = {
@@ -140,64 +99,124 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error || !data) {
         setProfile(fallbackProfile);
+        try {
+          localStorage.setItem("agrisight_cached_profile", JSON.stringify(fallbackProfile));
+        } catch {}
         return;
       }
 
-      setProfile({
+      const mergedProfile: UserProfile = {
         id: currentUser.id,
         fullName: data.full_name || fallbackProfile.fullName,
         email: currentUser.email || "",
         avatarUrl: data.avatar_url || fallbackProfile.avatarUrl,
         preferredLanguage: data.preferred_language || fallbackProfile.preferredLanguage,
         username: data.username || fallbackProfile.username,
-      });
+      };
+
+      setProfile(mergedProfile);
+      try {
+        localStorage.setItem("agrisight_cached_profile", JSON.stringify(mergedProfile));
+      } catch {}
     } catch {
       setProfile(fallbackProfile);
+      try {
+        localStorage.setItem("agrisight_cached_profile", JSON.stringify(fallbackProfile));
+      } catch {}
     }
   }, []);
 
+  const getStoredSession = (): Session | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          const item = localStorage.getItem(key);
+          if (item) {
+            const parsed = JSON.parse(item);
+            if (parsed && (parsed.user || parsed.access_token)) {
+              return parsed as Session;
+            }
+          }
+        }
+      }
+    } catch {}
+    return null;
+  };
+
   const refreshSession = useCallback(async () => {
     try {
-      if (typeof window !== "undefined" && localStorage.getItem("agrisight_guest_mode") === "true") {
-        setSession(GUEST_SESSION);
-        setUser(GUEST_USER);
-        setProfile(GUEST_PROFILE);
-        setIsLoading(false);
-        return;
+      const { data, error } = await supabase.auth.getSession();
+      if (!error && data?.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+        await fetchProfile(data.session.user);
+      } else if (!error && !data?.session) {
+        // If Supabase reports no active session, verify if storage really has nothing
+        const stored = getStoredSession();
+        if (!stored) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          try {
+            localStorage.removeItem("agrisight_cached_profile");
+          } catch {}
+        }
       }
-
-      const sessionPromise = supabase.auth.getSession();
-      const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) =>
-        setTimeout(() => resolve({ data: { session: null }, error: null }), 3500)
-      );
-
-      const { data: { session: currentSession }, error } = await Promise.race([
-        sessionPromise,
-        timeoutPromise,
-      ]);
-
-      if (error || !currentSession) {
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-      } else {
-        setSession(currentSession);
-        setUser(currentSession.user);
-        await fetchProfile(currentSession.user);
-      }
-    } catch {
-      // Clean fallback
+      // If error occurs (network unreachable, offline, DNS issues), DO NOT log out.
+      // Keep existing active/cached session intact.
+    } catch (err) {
+      console.warn("[AgriSight Auth] getSession network fallback, keeping active session:", err);
     } finally {
       setIsLoading(false);
     }
   }, [fetchProfile]);
 
   useEffect(() => {
+    // 1. Immediately hydrate from localStorage so user never experiences an unauthenticated flash
+    const stored = getStoredSession();
+    if (stored?.user) {
+      setSession(stored);
+      setUser(stored.user);
+      try {
+        const cachedRaw = localStorage.getItem("agrisight_cached_profile");
+        if (cachedRaw) {
+          setProfile(JSON.parse(cachedRaw));
+        } else {
+          setProfile({
+            id: stored.user.id,
+            fullName:
+              stored.user.user_metadata?.full_name ||
+              stored.user.user_metadata?.name ||
+              stored.user.email?.split("@")[0] ||
+              "Farmer",
+            email: stored.user.email || "",
+            avatarUrl:
+              stored.user.user_metadata?.avatar_url ||
+              stored.user.user_metadata?.picture ||
+              null,
+            preferredLanguage:
+              stored.user.user_metadata?.preferred_language ||
+              localStorage.getItem("agrisight_language") ||
+              "en",
+            username: stored.user.user_metadata?.username || null,
+          });
+        }
+      } catch {}
+      setIsLoading(false);
+    }
+
+    // 2. Refresh/validate with Supabase in background
     refreshSession();
 
     let appUrlListenerHandle: { remove: () => void } | null = null;
     if (Capacitor.isNativePlatform()) {
       App.addListener("appUrlOpen", async (event) => {
+        try {
+          const { Browser } = await import("@capacitor/browser");
+          await Browser.close().catch(() => {});
+        } catch {}
         try {
           const urlStr = event.url;
           const codeMatch = urlStr.match(/[?&]code=([^&#]+)/);
@@ -232,7 +251,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === "SIGNED_OUT") {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        try {
+          localStorage.removeItem("agrisight_cached_profile");
+        } catch {}
+        setIsLoading(false);
+        return;
+      }
+
       if (newSession?.user) {
         setSession(newSession);
         setUser(newSession.user);
@@ -240,7 +270,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setTimeout(() => {
           fetchProfile(newSession.user);
         }, 0);
-      } else {
+      } else if (!getStoredSession()) {
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -259,27 +289,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = async () => {
     setIsLoading(true);
     try {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("agrisight_guest_mode");
-      }
       await supabase.auth.signOut().catch(() => {});
     } finally {
+      try {
+        localStorage.removeItem("agrisight_cached_profile");
+        sessionStorage.clear();
+      } catch {}
       setSession(null);
       setUser(null);
       setProfile(null);
       setIsLoading(false);
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
   };
-
-  const signInAsGuest = useCallback(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("agrisight_guest_mode", "true");
-    }
-    setUser(GUEST_USER);
-    setSession(GUEST_SESSION);
-    setProfile(GUEST_PROFILE);
-    setIsLoading(false);
-  }, []);
 
   const signUp = async (
     email: string,
@@ -289,7 +313,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   ): Promise<{ data: unknown; error: Error | null }> => {
     try {
       const isNative = Capacitor.isNativePlatform();
-      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+      const origin = typeof window !== "undefined"
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_APP_URL || "https://agrisight-kn5u.onrender.com";
       const emailRedirectTo = isNative ? "agrisight://auth/callback" : `${origin}/auth/callback`;
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -314,8 +340,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signInWithGoogle = async (): Promise<{ error: Error | null }> => {
     try {
       const isNative = Capacitor.isNativePlatform();
-      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+      const origin = typeof window !== "undefined"
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_APP_URL || "https://agrisight-kn5u.onrender.com";
       const redirectTo = isNative ? "agrisight://auth/callback" : `${origin}/auth/callback`;
+
+      if (isNative) {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo,
+            skipBrowserRedirect: true,
+            queryParams: {
+              access_type: "offline",
+              prompt: "select_account",
+            },
+          },
+        });
+        if (error) return { error: new Error(error.message) };
+        if (data?.url) {
+          const { Browser } = await import("@capacitor/browser");
+          await Browser.open({ url: data.url, windowName: "_system" });
+        }
+        return { error: null };
+      }
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -414,7 +462,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const resendVerificationEmail = async (email: string) => {
     const isNative = Capacitor.isNativePlatform();
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const origin = typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || "https://agrisight-kn5u.onrender.com";
     const emailRedirectTo = isNative ? "agrisight://auth/callback" : `${origin}/auth/callback`;
     const { error } = await supabase.auth.resend({
       type: "signup",
@@ -428,7 +478,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const sendPasswordReset = async (email: string) => {
     const isNative = Capacitor.isNativePlatform();
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const origin = typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || "https://agrisight-kn5u.onrender.com";
     const redirectTo = isNative ? "agrisight://auth/callback?type=recovery" : `${origin}/auth/callback?type=recovery`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,
@@ -452,7 +504,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logout,
         signUp,
         signInWithGoogle,
-        signInAsGuest,
         updateProfile,
         checkUsernameAvailable,
         resendVerificationEmail,

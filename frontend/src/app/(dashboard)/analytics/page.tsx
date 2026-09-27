@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 
 interface ScanRecord {
   id: string;
+  image_url?: string;
   crop?: string;
   disease: string;
   severity: string;
@@ -28,7 +29,7 @@ interface FieldSummary {
 }
 
 export default function AnalyticsPage() {
-  const { t, translateDynamic } = useTranslation();
+  const { t, translateDynamic, language } = useTranslation();
   const { user, isLoading: authLoading } = useAuth();
 
   const [scans, setScans] = useState<ScanRecord[]>([]);
@@ -36,6 +37,11 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<"all" | "30d" | "7d">("all");
+  const [recordFilter, setRecordFilter] = useState<{
+    type: "all" | "threats" | "healthy" | "condition" | "severity";
+    label: string;
+    value?: string;
+  }>({ type: "all", label: "All Scans" });
 
   const loadData = async () => {
     try {
@@ -50,6 +56,7 @@ export default function AnalyticsPage() {
         setScans(
           scansData.map((item: any) => ({
             id: item.id,
+            image_url: item.image_url || item.result_json?.image_url || "",
             crop: item.result_json?.crop || item.crop_name || "",
             disease: item.disease || item.result_json?.disease || "Healthy",
             severity: (item.severity || item.result_json?.severity || "low").toLowerCase(),
@@ -178,6 +185,35 @@ export default function AnalyticsPage() {
     return fields.reduce((sum, f) => sum + (f.area_acres || 0), 0);
   }, [fields]);
 
+  // Filtered Scan Records for the inspection ledger
+  const displayedRecords = useMemo(() => {
+    return filteredScans.filter((s) => {
+      if (recordFilter.type === "all") return true;
+      if (recordFilter.type === "threats") {
+        return s.severity === "high" || s.severity === "critical" || s.severity === "severe";
+      }
+      if (recordFilter.type === "healthy") {
+        const d = s.disease.toLowerCase();
+        return d.includes("healthy") || s.severity === "low" || s.severity === "optimal";
+      }
+      if (recordFilter.type === "condition") {
+        return s.disease.trim().toLowerCase() === (recordFilter.value || "").trim().toLowerCase();
+      }
+      if (recordFilter.type === "severity") {
+        if (recordFilter.value === "high") {
+          return s.severity === "high" || s.severity === "critical" || s.severity === "severe";
+        }
+        if (recordFilter.value === "moderate") {
+          return s.severity === "medium" || s.severity === "moderate";
+        }
+        if (recordFilter.value === "low") {
+          return s.severity === "low" || s.severity === "optimal";
+        }
+      }
+      return true;
+    });
+  }, [filteredScans, recordFilter]);
+
   return (
     <div className="p-4 lg:p-10 space-y-8 max-w-[1600px] mx-auto pb-28 xl:pb-12 animate-in fade-in duration-300">
       {/* Header & Controls */}
@@ -287,8 +323,8 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Empty State: Section 19 Honest "Not enough data yet" Fallback */}
-      {!loading && !error && totalScans === 0 && (
+      {/* Empty State: Section 19 Honest "Not enough data yet" Fallback (only when zero total scans exist) */}
+      {!loading && !error && scans.length === 0 && (
         <div className="bg-surface-container-low border border-outline-variant/20 rounded-[2.5rem] p-8 lg:p-16 text-center space-y-5 max-w-2xl mx-auto shadow-sm">
           <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary mx-auto flex items-center justify-center">
             <span className="material-symbols-outlined text-3xl">insights</span>
@@ -314,17 +350,44 @@ export default function AnalyticsPage() {
       )}
 
       {/* Populated Analytics Dashboard */}
-      {!loading && !error && totalScans > 0 && (
+      {!loading && !error && scans.length > 0 && (
         <div className="space-y-8">
-          {/* Row 1: Top 4 KPI Cards */}
+          {/* Period Notification if window has zero scans but historical scans exist */}
+          {totalScans === 0 && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 font-bold animate-in fade-in">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-amber-600 text-xl shrink-0">info</span>
+                <span>No scans found in the selected {timeFilter === "7d" ? "7-day" : "30-day"} window. All {scans.length} historical scans are preserved.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTimeFilter("all")}
+                className="px-4 py-2 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-xs hover:bg-amber-600 transition-colors shrink-0"
+              >
+                Switch to All Scans ({scans.length})
+              </button>
+            </div>
+          )}
+
+          {/* Row 1: Top 4 KPI Cards (Interactive Drill-Down) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
             {/* KPI 1: Total Scans */}
-            <div className="bg-surface-container-low border border-outline-variant/25 rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+            <button
+              type="button"
+              onClick={() => {
+                setRecordFilter({ type: "all", label: "All Scans" });
+                const el = document.getElementById("scan-records-ledger");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className={`text-left bg-surface-container-low border rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-all active:scale-[0.99] cursor-pointer group ${
+                recordFilter.type === "all" ? "border-primary ring-2 ring-primary/30 bg-primary/5" : "border-outline-variant/25 hover:border-primary/40"
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant">
                   {t("totalScans")}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
                   <span className="material-symbols-outlined text-lg">document_scanner</span>
                 </div>
               </div>
@@ -336,18 +399,29 @@ export default function AnalyticsPage() {
                   records
                 </span>
               </div>
-              <p className="text-[11px] text-on-surface-variant/80 font-medium">
-                {timeFilter === "all" ? "All-time field scans" : `Last ${timeFilter} window`}
-              </p>
-            </div>
+              <div className="flex items-center justify-between text-[11px] font-bold text-primary group-hover:underline pt-1 border-t border-outline-variant/15">
+                <span>Click to view {totalScans} records</span>
+                <span className="material-symbols-outlined text-sm">arrow_downward</span>
+              </div>
+            </button>
 
             {/* KPI 2: Clean Health Rate */}
-            <div className="bg-surface-container-low border border-outline-variant/25 rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+            <button
+              type="button"
+              onClick={() => {
+                setRecordFilter({ type: "healthy", label: "Healthy / Optimal Scans" });
+                const el = document.getElementById("scan-records-ledger");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className={`text-left bg-surface-container-low border rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-all active:scale-[0.99] cursor-pointer group ${
+                recordFilter.type === "healthy" ? "border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-500/5" : "border-outline-variant/25 hover:border-emerald-500/40"
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant">
                   {t("cleanHealthRate")}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-lg">eco</span>
                 </div>
               </div>
@@ -365,15 +439,22 @@ export default function AnalyticsPage() {
                   style={{ width: `${cleanHealthRate}%` }}
                 />
               </div>
-            </div>
+              <div className="flex items-center justify-between text-[11px] font-bold text-emerald-600 group-hover:underline pt-1 border-t border-outline-variant/15">
+                <span>Click to filter {cleanScansCount} healthy</span>
+                <span className="material-symbols-outlined text-sm">arrow_downward</span>
+              </div>
+            </button>
 
             {/* KPI 3: Monitored Plots */}
-            <div className="bg-surface-container-low border border-outline-variant/25 rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+            <Link
+              href="/fields"
+              className="bg-surface-container-low border border-outline-variant/25 hover:border-primary/40 rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-all group"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant">
                   {t("activePlots")}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-secondary-container text-on-secondary-container flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-secondary-container text-on-secondary-container flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
                   <span className="material-symbols-outlined text-lg">grid_view</span>
                 </div>
               </div>
@@ -385,18 +466,29 @@ export default function AnalyticsPage() {
                   {totalManagedArea > 0 ? `· ${totalManagedArea} ${t("acres")}` : "plots"}
                 </span>
               </div>
-              <p className="text-[11px] text-on-surface-variant/80 font-medium truncate">
-                {fields.length > 0 ? `${fields.length} plots tracked in real-time` : "No plots assigned yet"}
-              </p>
-            </div>
+              <div className="flex items-center justify-between text-[11px] font-bold text-on-surface-variant group-hover:text-primary pt-1 border-t border-outline-variant/15">
+                <span>Manage Plots</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </div>
+            </Link>
 
             {/* KPI 4: Active Threats */}
-            <div className="bg-surface-container-low border border-outline-variant/25 rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+            <button
+              type="button"
+              onClick={() => {
+                setRecordFilter({ type: "threats", label: "Active Threats (High / Critical)" });
+                const el = document.getElementById("scan-records-ledger");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className={`text-left bg-surface-container-low border rounded-[2rem] p-5 lg:p-6 space-y-3 shadow-sm hover:shadow-md transition-all active:scale-[0.99] cursor-pointer group ${
+                recordFilter.type === "threats" ? "border-rose-500 ring-2 ring-rose-500/30 bg-rose-500/5" : "border-outline-variant/25 hover:border-rose-500/40"
+              }`}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant">
+                <span className="text-[11px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-400">
                   {t("activeThreats")}
                 </span>
-                <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center group-hover:bg-rose-500 group-hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-lg">warning</span>
                 </div>
               </div>
@@ -408,10 +500,11 @@ export default function AnalyticsPage() {
                   ({severityCounts.highPct}%)
                 </span>
               </div>
-              <p className="text-[11px] text-on-surface-variant/80 font-medium">
-                High or critical severity infections
-              </p>
-            </div>
+              <div className="flex items-center justify-between text-[11px] font-bold text-rose-600 group-hover:underline pt-1 border-t border-outline-variant/15">
+                <span>Click to inspect {severityCounts.high} threats</span>
+                <span className="material-symbols-outlined text-sm">arrow_downward</span>
+              </div>
+            </button>
           </div>
 
           {/* Row 2: Pathogen Distribution & Threat Severity Breakdown */}
@@ -431,57 +524,93 @@ export default function AnalyticsPage() {
                   </h3>
                 </div>
                 <span className="text-xs font-bold text-on-surface-variant">
-                  {pathogenDistribution.length} distinct
+                  {pathogenDistribution.length} distinct · click to filter
                 </span>
               </div>
 
-              <div className="space-y-3.5">
-                {pathogenDistribution.map((item, idx) => (
-                  <div key={idx} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-on-surface truncate">
-                        {translateDynamic(item.name)}
-                      </span>
-                      <span className="text-on-surface-variant shrink-0 ml-2">
-                        {item.count} scans ({item.percentage}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-surface-container-highest h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          item.name.toLowerCase().includes("healthy")
-                            ? "bg-emerald-500"
-                            : idx % 3 === 0
-                            ? "bg-rose-500"
-                            : idx % 3 === 1
-                            ? "bg-amber-500"
-                            : "bg-primary"
-                        }`}
-                        style={{ width: `${Math.max(item.percentage, 4)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
+              <div className="space-y-2">
+                {pathogenDistribution.map((item, idx) => {
+                  const isSelected = recordFilter.type === "condition" && recordFilter.value === item.name;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setRecordFilter({ type: "condition", label: item.name, value: item.name });
+                        const el = document.getElementById("scan-records-ledger");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className={`w-full text-left space-y-1.5 p-3 rounded-2xl transition-all cursor-pointer group ${
+                        isSelected
+                          ? "bg-primary/10 border border-primary/40 shadow-xs"
+                          : "hover:bg-surface-container-high/60 border border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-on-surface truncate group-hover:text-primary transition-colors flex items-center gap-1.5">
+                          <span>{translateDynamic(item.name)}</span>
+                          {isSelected && (
+                            <span className="material-symbols-outlined text-xs text-primary">check_circle</span>
+                          )}
+                        </span>
+                        <span className="text-on-surface-variant shrink-0 ml-2">
+                          {item.count} scans ({item.percentage}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-surface-container-highest h-2.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            item.name.toLowerCase().includes("healthy")
+                              ? "bg-emerald-500"
+                              : idx % 3 === 0
+                              ? "bg-rose-500"
+                              : idx % 3 === 1
+                              ? "bg-amber-500"
+                              : "bg-primary"
+                          }`}
+                          style={{ width: `${Math.max(item.percentage, 4)}%` }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Right: Threat Severity Breakdown (5 cols) */}
             <div className="lg:col-span-5 bg-surface-container-low border border-outline-variant/25 rounded-[2.25rem] p-6 lg:p-7 space-y-5 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span
-                  className="material-symbols-outlined text-primary text-xl"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  donut_large
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="material-symbols-outlined text-primary text-xl"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    donut_large
+                  </span>
+                  <h3 className="font-extrabold text-on-surface text-base lg:text-lg">
+                    {t("severityBreakdown")}
+                  </h3>
+                </div>
+                <span className="text-xs font-bold text-on-surface-variant">
+                  click to filter
                 </span>
-                <h3 className="font-extrabold text-on-surface text-base lg:text-lg">
-                  {t("severityBreakdown")}
-                </h3>
               </div>
 
               <div className="space-y-4 pt-1">
                 {/* Low / Healthy */}
-                <div className="p-4 rounded-2xl bg-surface-container-high/50 border border-outline-variant/15 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecordFilter({ type: "severity", label: "Healthy / Low Risk", value: "low" });
+                    const el = document.getElementById("scan-records-ledger");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className={`w-full text-left p-4 rounded-2xl border space-y-2 transition-all cursor-pointer group ${
+                    recordFilter.type === "severity" && recordFilter.value === "low"
+                      ? "bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/20"
+                      : "bg-surface-container-high/50 hover:bg-surface-container-high border-outline-variant/15 hover:border-emerald-500/30"
+                  }`}
+                >
                   <div className="flex items-center justify-between text-xs font-black">
                     <span className="text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
                       {t("healthy")} / {t("low")}
@@ -496,10 +625,22 @@ export default function AnalyticsPage() {
                       style={{ width: `${severityCounts.lowPct}%` }}
                     />
                   </div>
-                </div>
+                </button>
 
                 {/* Moderate */}
-                <div className="p-4 rounded-2xl bg-surface-container-high/50 border border-outline-variant/15 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecordFilter({ type: "severity", label: "Moderate Risk", value: "moderate" });
+                    const el = document.getElementById("scan-records-ledger");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className={`w-full text-left p-4 rounded-2xl border space-y-2 transition-all cursor-pointer group ${
+                    recordFilter.type === "severity" && recordFilter.value === "moderate"
+                      ? "bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20"
+                      : "bg-surface-container-high/50 hover:bg-surface-container-high border-outline-variant/15 hover:border-amber-500/30"
+                  }`}
+                >
                   <div className="flex items-center justify-between text-xs font-black">
                     <span className="text-amber-700 dark:text-amber-400 uppercase tracking-wider">
                       {t("moderate")}
@@ -514,10 +655,22 @@ export default function AnalyticsPage() {
                       style={{ width: `${severityCounts.moderatePct}%` }}
                     />
                   </div>
-                </div>
+                </button>
 
                 {/* High / Critical */}
-                <div className="p-4 rounded-2xl bg-surface-container-high/50 border border-outline-variant/15 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecordFilter({ type: "threats", label: "Active Threats (High / Critical)" });
+                    const el = document.getElementById("scan-records-ledger");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className={`w-full text-left p-4 rounded-2xl border space-y-2 transition-all cursor-pointer group ${
+                    recordFilter.type === "threats"
+                      ? "bg-rose-500/10 border-rose-500 ring-2 ring-rose-500/20"
+                      : "bg-surface-container-high/50 hover:bg-surface-container-high border-outline-variant/15 hover:border-rose-500/30"
+                  }`}
+                >
                   <div className="flex items-center justify-between text-xs font-black">
                     <span className="text-rose-700 dark:text-rose-400 uppercase tracking-wider">
                       {t("high")} / {t("critical")}
@@ -532,7 +685,7 @@ export default function AnalyticsPage() {
                       style={{ width: `${severityCounts.highPct}%` }}
                     />
                   </div>
-                </div>
+                </button>
               </div>
 
               {/* Crop Diversity Mini-Chips */}
@@ -556,7 +709,133 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Row 3: Field Performance Matrix */}
+          {/* Row 3: Interactive Scan Records & Threat Inspection Ledger */}
+          <div id="scan-records-ledger" className="bg-surface-container-low border border-outline-variant/25 rounded-[2.25rem] p-6 lg:p-7 space-y-5 shadow-sm scroll-mt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant/15">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-xl">folder_managed</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-on-surface text-base lg:text-lg">
+                      Empirical Scan Records ({displayedRecords.length})
+                    </h3>
+                    {recordFilter.type !== "all" && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-primary/10 text-primary">
+                        Filtered: {recordFilter.label}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    Click any record to inspect the complete diagnostic report, symptoms, and treatment protocols.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {recordFilter.type !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => setRecordFilter({ type: "all", label: "All Scans" })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-xs font-bold text-on-surface transition-all"
+                  >
+                    <span className="material-symbols-outlined text-sm">filter_alt_off</span>
+                    <span>Show All Scans</span>
+                  </button>
+                )}
+                <Link
+                  href="/history"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-xs font-bold text-primary transition-all"
+                >
+                  <span>{language === "bn" ? "ইতিহাসে সব দেখুন" : language === "hi" ? "इतिहास में सभी देखें" : "View All in History"}</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </Link>
+              </div>
+            </div>
+
+            {displayedRecords.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                {displayedRecords.map((record) => {
+                  const isThreat = record.severity === "high" || record.severity === "critical" || record.severity === "severe";
+                  const isModerate = record.severity === "medium" || record.severity === "moderate";
+                  return (
+                    <Link
+                      key={record.id}
+                      href={`/analysis/${record.id}`}
+                      className={`p-4 rounded-2xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between space-y-3 group ${
+                        isThreat
+                          ? "bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/30"
+                          : isModerate
+                          ? "bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/30"
+                          : "bg-surface-container-high/40 hover:bg-surface-container-high border-outline-variant/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                            isThreat ? "bg-rose-500 text-white" : isModerate ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"
+                          }`}>
+                            <span className="material-symbols-outlined text-xl">
+                              {isThreat ? "warning" : isModerate ? "bug_report" : "eco"}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-extrabold text-sm text-on-surface truncate group-hover:text-primary transition-colors">
+                              {translateDynamic(record.disease)}
+                            </h4>
+                            <p className="text-xs text-on-surface-variant font-medium truncate">
+                              {record.crop ? translateDynamic(record.crop) : (language === "bn" ? "ফসল" : language === "hi" ? "फसल" : "Crop")}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                          isThreat
+                            ? "bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40"
+                            : isModerate
+                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40"
+                            : "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40"
+                        }`}>
+                          {record.severity}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-on-surface-variant font-semibold pt-2 border-t border-outline-variant/15">
+                        <span>
+                          {new Date(record.created_at).toLocaleDateString(language === "bn" ? "bn-IN" : language === "hi" ? "hi-IN" : "en-IN", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                        <span className="text-primary font-bold inline-flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
+                          <span>Report</span>
+                          <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-8 text-center rounded-2xl bg-surface-container-high/30 border border-dashed border-outline-variant/30 space-y-2">
+                <span className="material-symbols-outlined text-3xl text-on-surface-variant/50">search_off</span>
+                <p className="text-xs font-bold text-on-surface-variant">
+                  No records match the active filter ({recordFilter.label}).
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRecordFilter({ type: "all", label: "All Scans" })}
+                  className="px-3.5 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:bg-primary/90 transition-all"
+                >
+                  Show All Scans
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Row 4: Field Performance Matrix */}
           <div className="bg-surface-container-low border border-outline-variant/25 rounded-[2.25rem] p-6 lg:p-7 space-y-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

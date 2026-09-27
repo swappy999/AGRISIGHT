@@ -44,7 +44,7 @@ export interface WeatherIntelligenceData {
   latitude: number;
   longitude: number;
   updatedAt: string;
-  
+
   // Environmental Risk Analysis
   heatRisk: EnvironmentalRisk;
   rainRisk: EnvironmentalRisk;
@@ -52,14 +52,14 @@ export interface WeatherIntelligenceData {
   fungalRisk: EnvironmentalRisk;
   extremeWeatherRisk: EnvironmentalRisk;
   overallEnvironmentalRisk: "Low" | "Moderate" | "High";
-  
+
   // Agricultural Synthesis
   agriInsight: {
     en: string;
     hi: string;
     bn: string;
   };
-  
+
   // 3-Day Forecast
   forecast: DayForecast[];
 }
@@ -79,37 +79,11 @@ export function mapWeatherCodeToCondition(code: number): { condition: string; ic
   return { condition: "Cloudy", icon: "cloud" };
 }
 
-export async function reverseGeocodeLocation(lat: number, lon: number): Promise<string> {
-  const latRounded = Number(lat.toFixed(2));
-  const lonRounded = Number(lon.toFixed(2));
-
-  // Regional predefined lookup for default coordinates
-  if (Math.abs(latRounded - 22.57) < 0.1 && Math.abs(lonRounded - 88.36) < 0.1) {
-    return "Kolkata, WB";
-  }
-  if (Math.abs(latRounded - 28.61) < 0.15 && Math.abs(lonRounded - 77.21) < 0.15) {
-    return "New Delhi";
-  }
-  if (Math.abs(latRounded - 19.07) < 0.15 && Math.abs(lonRounded - 72.88) < 0.15) {
-    return "Mumbai";
-  }
-  if (Math.abs(latRounded - 12.97) < 0.15 && Math.abs(lonRounded - 77.59) < 0.15) {
-    return "Bengaluru";
-  }
-  if (Math.abs(latRounded - 17.38) < 0.15 && Math.abs(lonRounded - 78.48) < 0.15) {
-    return "Hyderabad";
-  }
-  if (Math.abs(latRounded - 26.85) < 0.15 && Math.abs(lonRounded - 80.95) < 0.15) {
-    return "Lucknow";
-  }
-  if (Math.abs(latRounded - 25.60) < 0.15 && Math.abs(lonRounded - 85.14) < 0.15) {
-    return "Patna";
-  }
-
+export async function reverseGeocodeLocation(lat: number, lon: number): Promise<string | null> {
   // Live client reverse-geocoding via BigDataCloud client API (free, open, no token required)
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
+    const timer = setTimeout(() => controller.abort(), 4000);
     const resp = await fetch(
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
       { signal: controller.signal }
@@ -117,25 +91,40 @@ export async function reverseGeocodeLocation(lat: number, lon: number): Promise<
     clearTimeout(timer);
     if (resp.ok) {
       const geo = await resp.json();
-      const place = geo.city || geo.locality || geo.localityInfo?.administrative?.[2]?.name || geo.principalSubdivision;
-      const state = geo.principalSubdivision;
-      if (place && state && place !== state) {
-        return `${place}, ${state}`;
+
+      // Try sub-locality / neighborhood first (most precise), then locality, then city
+      const subLocality =
+        geo.localityInfo?.informative?.[0]?.name ||
+        geo.localityInfo?.informative?.[1]?.name ||
+        null;
+      const city =
+        geo.city ||
+        geo.locality ||
+        geo.localityInfo?.administrative?.[2]?.name ||
+        null;
+      const state = geo.principalSubdivision || null;
+
+      if (subLocality && city && subLocality !== city) {
+        // e.g. "Behala, Parnashree" + city → "Behala, Parnashree\nKolkata"
+        return state ? `${subLocality}, ${city}` : subLocality;
       }
-      if (place) return place;
+      if (city && state && city !== state) {
+        return `${city}, ${state}`;
+      }
+      if (city) return city;
     }
   } catch {
-    // Graceful fallback
+    // Graceful fallback — caller handles null
   }
 
-  return "Kolkata, WB";
+  return null;
 }
 
 export function computeEnvironmentalIntelligence(
   raw: any,
   lat: number,
   lon: number,
-  locationName: string = "Kolkata, WB"
+  locationName: string | null = null
 ): WeatherIntelligenceData {
   const current = raw.current_weather || {};
   const hourly = raw.hourly || {};
@@ -401,7 +390,7 @@ export function computeEnvironmentalIntelligence(
     weatherCode,
     condition,
     icon,
-    locationName: locationName || "Kolkata, WB",
+    locationName: locationName || "Location unavailable",
     latitude: lat,
     longitude: lon,
     updatedAt: new Date().toISOString(),
@@ -417,28 +406,53 @@ export function computeEnvironmentalIntelligence(
 }
 
 export async function fetchWeatherIntelligence(
-  lat: number = 22.57,
-  lon: number = 88.36,
+  lat?: number,
+  lon?: number,
   forceRefresh: boolean = false
 ): Promise<WeatherIntelligenceData> {
-  const cacheKey = `weather_intelligence_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+  // If no coordinates provided, try to get device location
+  let resolvedLat = lat;
+  let resolvedLon = lon;
+
+  if (resolvedLat === undefined || resolvedLon === undefined) {
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 6000,
+            maximumAge: 120000,
+            enableHighAccuracy: false,
+          });
+        });
+        resolvedLat = pos.coords.latitude;
+        resolvedLon = pos.coords.longitude;
+      } catch {
+        throw new Error("Location unavailable");
+      }
+    } else {
+      throw new Error("Location unavailable");
+    }
+  }
+
+  const cacheKey = `weather_intelligence_${resolvedLat.toFixed(2)}_${resolvedLon.toFixed(2)}`;
   return await cachedFetch<WeatherIntelligenceData>(
     cacheKey,
     async () => {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=relativehumidity_2m,precipitation_probability,precipitation,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max,windspeed_10m_max&timezone=auto`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${resolvedLat}&longitude=${resolvedLon}&current_weather=true&hourly=relativehumidity_2m,precipitation_probability,precipitation,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max,windspeed_10m_max&timezone=auto`;
 
       const [weatherResp, locationName] = await Promise.all([
         fetch(url),
-        reverseGeocodeLocation(lat, lon).catch(() => "Kolkata, WB"),
+        reverseGeocodeLocation(resolvedLat!, resolvedLon!).catch(() => null),
       ]);
 
       if (!weatherResp.ok) {
         throw new Error(`Weather service returned HTTP ${weatherResp.status}`);
       }
       const raw = await weatherResp.json();
-      return computeEnvironmentalIntelligence(raw, lat, lon, locationName);
+      return computeEnvironmentalIntelligence(raw, resolvedLat!, resolvedLon!, locationName);
     },
     15 * 60 * 1000,
     forceRefresh
   );
 }
+

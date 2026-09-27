@@ -193,8 +193,8 @@ async def analyze_image(
         except Exception as decode_err:
             logger.warning(f"Backend image decoding failed: {decode_err}")
             return error_response(code="INVALID_IMAGE", message="Uploaded file could not be decoded as a valid image. Please provide a clear leaf photo.")
-        # 1. Image URL assignment & storage upload
-        record_id = str(uuid.uuid4())
+        # 1. Image URL assignment & storage upload (a5.md Section 7: Unique scan_ ID)
+        record_id = f"scan_{uuid.uuid4().hex[:16]}"
         file_ext = "jpg"
         if upload_file.filename and "." in upload_file.filename:
             file_ext = upload_file.filename.split(".")[-1].lower()
@@ -289,12 +289,33 @@ async def analyze_image(
         }
         if analysis_result.is_agricultural and crop_id and crop_id.strip():
             db_record["crop_id"] = crop_id.strip()
+        if field_id and field_id.strip():
+            db_record["field_id"] = field_id.strip()
 
         # Always save immediately to local SQLite DB so user gets instant response
         try:
             local_db.create_analysis(user["id"], db_record)
         except Exception as ldb_err:
             logger.warning(f"Local DB save failed: {ldb_err}")
+
+        # Save to Supabase remote database if available (a4.md Section 24)
+        try:
+            from datetime import timezone
+            sb = get_supabase()
+            sb.table("analyses").insert({
+                "id": record_id,
+                "user_id": user["id"],
+                "image_url": image_url,
+                "disease": db_disease,
+                "severity": safe_severity,
+                "result_json": result_dict,
+                "crop_id": db_record.get("crop_id", ""),
+                "field_id": result_dict.get("field_id", ""),
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+            logger.info(f"Analysis saved to Supabase: {record_id}")
+        except Exception as sb_ins_err:
+            logger.info(f"Supabase analysis insert skipped/failed: {sb_ins_err}")
 
         # 5. Create Notification ONLY if valid agricultural crop with high risk
         if analysis_result.is_agricultural and (safe_risk_score > 70 or safe_severity.lower() in ['high', 'severe', 'critical']):
@@ -323,7 +344,7 @@ async def analyze_image(
         fallback_res = _get_agronomic_vision_fallback(question, language)
         fallback_img = locals().get("image_url") or "/api/backend/uploads/fallback_leaf.jpg"
         return success_response({
-            "id": locals().get("record_id") or str(uuid.uuid4()),
+            "id": locals().get("record_id") or f"scan_{uuid.uuid4().hex[:16]}",
             "result": fallback_res.model_dump(),
             "image_url": fallback_img,
             "crop_id": crop_id if crop_id and crop_id.strip() else None,
@@ -357,20 +378,126 @@ async def get_analyses(user: dict = Depends(rate_limit)):
     return success_response(local_analyses)
 
 
+def _fetch_analysis_record(analysis_id: str, user_id: str) -> Optional[dict]:
+    # 1. Check local DB first
+    rec = local_db.get_analysis(analysis_id, user_id)
+    if rec:
+        return rec
+
+    # 2. Check Supabase
+    try:
+        sb = get_supabase()
+        resp = sb.table("analyses").select("*").eq("id", analysis_id).execute()
+        if resp.data:
+            return resp.data[0]
+    except Exception as e:
+        logger.warning(f"Fetch remote analysis failed for {analysis_id}: {str(e)}")
+
+    return None
+
+
+def _find_candidate_scans(current_scan: dict, user_id: str) -> List[dict]:
+    from app.core.security import DEFAULT_DEV_USER_ID
+    allowed_ids = [user_id, DEFAULT_DEV_USER_ID]
+    if current_scan.get("user_id") and current_scan["user_id"] not in allowed_ids:
+        allowed_ids.append(current_scan["user_id"])
+
+    all_scans = []
+
+    # 1. Fetch from local DB for all relevant user IDs
+    for uid in allowed_ids:
+        try:
+            for s in local_db.list_analyses(uid):
+                all_scans.append(s)
+        except Exception as e:
+            logger.warning(f"Local DB candidate scan list failed for {uid}: {e}")
+
+    # 2. Fetch from Supabase
+    try:
+        sb = get_supabase()
+        resp = sb.table("analyses").select("*").in_("user_id", allowed_ids).order("created_at", desc=True).limit(50).execute()
+        if resp.data:
+            all_scans.extend(resp.data)
+    except Exception as e:
+        logger.warning(f"Supabase candidate scan list failed: {e}")
+
+    # Deduplicate by id and filter out current_scan itself and newer records
+    curr_id = current_scan.get("id")
+    curr_created = current_scan.get("created_at")
+    seen_ids = set()
+    candidates = []
+
+    for s in all_scans:
+        sid = s.get("id")
+        if not sid or sid == curr_id or sid in seen_ids:
+            continue
+        seen_ids.add(sid)
+
+        s_created = s.get("created_at")
+        if curr_created and s_created and str(s_created) >= str(curr_created):
+            continue
+        candidates.append(s)
+
+    # Sort descending by created_at (newest prior scan first)
+    candidates.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    return candidates
+
+
+def _pick_best_previous_scan(current_scan: dict, candidates: List[dict]) -> Optional[dict]:
+    if not candidates:
+        return None
+
+    curr_crop_id = current_scan.get("crop_id")
+    curr_rj = current_scan.get("result_json") or {}
+    if isinstance(curr_rj, str):
+        try:
+            import json
+            curr_rj = json.loads(curr_rj)
+        except Exception:
+            curr_rj = {}
+
+    curr_crop_name = (curr_rj.get("crop") or curr_rj.get("plant_name") or current_scan.get("crop") or "").strip().lower()
+    curr_disease = (current_scan.get("disease") or curr_rj.get("disease") or "").strip().lower()
+
+    # 1. Match by crop_id if available
+    if curr_crop_id:
+        for c in candidates:
+            if c.get("crop_id") and c["crop_id"] == curr_crop_id:
+                return c
+
+    # 2. Match by crop name (e.g. Maize, Corn, Tomato)
+    if curr_crop_name:
+        for c in candidates:
+            c_rj = c.get("result_json") or {}
+            if isinstance(c_rj, str):
+                try:
+                    import json
+                    c_rj = json.loads(c_rj)
+                except Exception:
+                    c_rj = {}
+            c_crop = (c_rj.get("crop") or c_rj.get("plant_name") or c.get("crop") or "").strip().lower()
+            c_dis = (c.get("disease") or c_rj.get("disease") or "").strip().lower()
+
+            if c_crop and (c_crop == curr_crop_name or c_crop in curr_crop_name or curr_crop_name in c_crop):
+                return c
+            # Synonym / alias match for corn / maize
+            if curr_crop_name in ["maize", "corn"] and (c_crop in ["maize", "corn"] or "maize" in c_dis or "corn" in c_dis or "kernel" in c_dis or "ear rot" in c_dis):
+                return c
+
+    # 3. Fallback to immediate prior scan of ANY crop
+    return candidates[0]
+
+
 # IMPORTANT: /analyses/compare MUST be registered BEFORE /analyses/{id} in FastAPI
 @router.get("/analyses/compare", response_model=BaseResponse[dict])
 async def compare_analyses(scan1_id: str, scan2_id: str, user: dict = Depends(rate_limit)):
     """Compare two arbitrary scans for the authenticated user."""
     try:
-        sb = get_supabase()
         from app.core.security import DEFAULT_DEV_USER_ID
-        resp1 = sb.table("analyses").select("*").eq("id", scan1_id).execute()
-        resp2 = sb.table("analyses").select("*").eq("id", scan2_id).execute()
-        if not resp1.data or not resp2.data:
+        s1 = _fetch_analysis_record(scan1_id, user["id"])
+        s2 = _fetch_analysis_record(scan2_id, user["id"])
+        if not s1 or not s2:
             return error_response("NOT_FOUND", "One or both analysis records were not found")
-
-        s1 = resp1.data[0]
-        s2 = resp2.data[0]
 
         # Verify access: record belongs to user or dev fallback
         allowed_ids = [user["id"], DEFAULT_DEV_USER_ID]
@@ -380,12 +507,15 @@ async def compare_analyses(scan1_id: str, scan2_id: str, user: dict = Depends(ra
             return error_response("FORBIDDEN", "Unauthorized access to analysis record")
 
         # Order chronologically: older is 'previous', newer is 'current'
-        t1 = datetime.fromisoformat(s1["created_at"].replace("Z", "+00:00"))
-        t2 = datetime.fromisoformat(s2["created_at"].replace("Z", "+00:00"))
-        if t1 <= t2:
+        try:
+            t1 = datetime.fromisoformat(str(s1["created_at"]).replace("Z", "+00:00"))
+            t2 = datetime.fromisoformat(str(s2["created_at"]).replace("Z", "+00:00"))
+            if t1 <= t2:
+                older, newer = s1, s2
+            else:
+                older, newer = s2, s1
+        except Exception:
             older, newer = s1, s2
-        else:
-            older, newer = s2, s1
 
         progression = _calculate_progression(newer, older)
         return success_response({
@@ -402,40 +532,44 @@ async def compare_analyses(scan1_id: str, scan2_id: str, user: dict = Depends(ra
 async def get_analysis_progression(id: str, user: dict = Depends(rate_limit)):
     """Fetch an analysis along with its comparative progression relative to the previous scan for the same crop."""
     try:
-        sb = get_supabase()
         from app.core.security import DEFAULT_DEV_USER_ID
-        # 1. Fetch current analysis by ID
-        curr_resp = sb.table("analyses").select("*").eq("id", id).execute()
-        if not curr_resp.data:
+        current_scan = _fetch_analysis_record(id, user["id"])
+        if not current_scan:
             return error_response("NOT_FOUND", "Analysis record not found")
-        current_scan = curr_resp.data[0]
 
         # Verify access
         allowed_ids = [user["id"], DEFAULT_DEV_USER_ID]
         if current_scan.get("user_id") and current_scan["user_id"] not in allowed_ids and user["id"] != DEFAULT_DEV_USER_ID:
             return error_response("NOT_FOUND", "Analysis record not found")
 
-        crop_id = current_scan.get("crop_id")
-        previous_scan = None
-        if crop_id:
-            # 2. Fetch the immediate prior scan for this same crop
-            prev_resp = (
-                sb.table("analyses")
-                .select("*")
-                .eq("crop_id", crop_id)
-                .in_("user_id", allowed_ids)
-                .lt("created_at", current_scan["created_at"])
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            if prev_resp.data:
-                previous_scan = prev_resp.data[0]
-
+        candidates = _find_candidate_scans(current_scan, user["id"])
+        previous_scan = _pick_best_previous_scan(current_scan, candidates)
         progression = _calculate_progression(current_scan, previous_scan)
+
+        # Build list of available prior scans for client-side selection
+        available_priors = []
+        for c in candidates[:10]:
+            c_rj = c.get("result_json") or {}
+            if isinstance(c_rj, str):
+                try:
+                    import json
+                    c_rj = json.loads(c_rj)
+                except Exception:
+                    c_rj = {}
+            c_crop = c_rj.get("crop") or c_rj.get("plant_name") or c.get("crop") or "Crop"
+            available_priors.append({
+                "id": c["id"],
+                "created_at": c.get("created_at"),
+                "disease": c.get("disease", "Healthy"),
+                "severity": c.get("severity", "Low"),
+                "crop": c_crop,
+                "image_url": c.get("image_url", ""),
+            })
+
         return success_response({
             "current_analysis": current_scan,
-            "progression": progression
+            "progression": progression,
+            "available_prior_scans": available_priors
         })
     except Exception as e:
         logger.error(f"Fetch progression failed: {str(e)}")

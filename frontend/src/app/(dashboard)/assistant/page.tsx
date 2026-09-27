@@ -7,6 +7,7 @@ import { useTranslation, LANGUAGE_CONFIG } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/apiClient";
 import { useSpeechInput } from "@/hooks/useSpeechInput";
+import { normalizeSpeechTranscript } from "@/lib/speechNormalization";
 import { useSpeechOutput } from "@/hooks/useSpeechOutput";
 import { VoiceVisualizer } from "@/components/VoiceVisualizer";
 
@@ -444,15 +445,15 @@ function AssistantContent() {
     if (!authLoading && user && (messages.length === 0 || (messages.length === 1 && messages[0].role === "assistant"))) {
       const welcomeText = fieldName
         ? language === "bn"
-          ? `নমস্কার! আমি এগ্রিসাইট এআই — "${fieldName}" জমির জন্য প্রস্তুত। এই জমির ফসল, মাটির অবস্থা ও রোগ প্রতিরোধ সম্পর্কে যেকোনো প্রশ্ন করুন।`
+          ? `নমস্কার! আমি এগ্রিসাইট কৃষি উপদেষ্টা — "${fieldName}" জমির জন্য প্রস্তুত। এই জমির ফসল, মাটির অবস্থা ও রোগ প্রতিরোধ সম্পর্কে যেকোনো প্রশ্ন করুন।`
           : language === "hi"
-          ? `नमस्ते! मैं एग्रीसाइट एआई हूँ — "${fieldName}" खेत के लिए तैयार। इस खेत की फसल, मिट्टी की स्थिति और उपचार के बारे में कोई भी प्रश्न पूछें।`
-          : `Hello! I'm AgriSight AI — ready to assist with "${fieldName}". Ask me about crop health, risk alerts, or recommendations for this field.`
+          ? `नमस्ते! मैं आपका एग्रीसाइट कृषि सलाहकार हूँ — "${fieldName}" खेत के लिए तैयार। इस खेत की फसल, मिट्टी की स्थिति और उपचार के बारे में कोई भी प्रश्न पूछें।`
+          : `Hello! I'm your AgriSight advisor — ready to assist with "${fieldName}". Ask me about crop health, risk alerts, or recommendations for this field.`
         : language === "bn"
-          ? "নমস্কার! আমি এগ্রিসাইট এআই — আপনার কৃষি সিদ্ধান্ত উপদেষ্টা। আপনার নিবন্ধিত জমি, ফসল এবং পাতার স্ক্যানের ডেটা আমার সাথে যুক্ত রয়েছে।\n\nরোগের বিস্তার, চিকিৎসা পরামর্শ বা প্রতিরোধমূলক পদক্ষেপ সম্পর্কে আমাকে প্রশ্ন করুন।"
+          ? "নমস্কার! আমি এগ্রিসাইট কৃষি সিদ্ধান্ত উপদেষ্টা। আপনার নিবন্ধিত জমি, ফসল এবং পাতার স্ক্যানের ডেটা আমার সাথে যুক্ত রয়েছে।\n\nরোগের বিস্তার, চিকিৎসা পরামর্শ বা প্রতিরোধমূলক পদক্ষেপ সম্পর্কে আমাকে প্রশ্ন করুন।"
           : language === "hi"
-          ? "नमस्ते! मैं एग्रीसाइट एआई हूँ — आपका कृषि निर्णय सलाहकार। मेरे पास आपके पंजीकृत खेतों, फसलों और पत्ती स्कैन इतिहास का डेटा है।\n\nमुझसे रोग की स्थिति, उपचार मार्गदर्शन या रोकथाम के बारे में पूछें।"
-          : "Hello! I'm AgriSight AI — your agricultural decision advisor. I have access to your registered fields, crops, and leaf scan history.\n\nAsk me about disease progression, plot hotspots, treatment guidance, or preventive actions.";
+          ? "नमस्ते! मैं आपका एग्रीसाइट कृषि सलाहकार हूँ। मेरे पास आपके पंजीकृत खेतों, फसलों और पत्ती स्कैन इतिहास का डेटा है।\n\nमुझसे रोग की स्थिति, उपचार मार्गदर्शन या रोकथाम के बारे में पूछें।"
+          : "Hello! I'm your AgriSight agricultural advisor. I have access to your registered fields, crops, and leaf scan history.\n\nAsk me about disease progression, plot hotspots, treatment guidance, or preventive actions.";
 
       setMessages([
         {
@@ -469,7 +470,7 @@ function AssistantContent() {
 
   const sendMessage = useCallback(
     async (text: string) => {
-      const trimmed = text.trim();
+      const trimmed = normalizeSpeechTranscript(text.trim());
       if (!trimmed || isThinking) return;
 
       const userMsg: Message = {

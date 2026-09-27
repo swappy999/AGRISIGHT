@@ -121,11 +121,33 @@ class CropUpdate(BaseModel):
     field_id: str = ""
     notes: str = ""
 
-# ── AI Assistant Schema (M10, Phase 13) ────────────────────────────────────────
+# ── AI Assistant Schema (M10, Phase 13, a5.md Sections 6, 11, 12) ─────────────
+class AssistantScanContext(BaseModel):
+    id: Optional[str] = None
+    crop: Optional[str] = None
+    condition: Optional[str] = None
+    disease: Optional[str] = None
+    severity: Optional[str] = None
+    confidence: Optional[Union[float, int]] = None
+    field_id: Optional[str] = None
+    crop_id: Optional[str] = None
+    field_name: Optional[str] = None
+    crop_name: Optional[str] = None
+    created_at: Optional[str] = None
+    observations: Optional[List[str]] = None
+    possible_causes: Optional[List[str]] = None
+    recommended_actions: Optional[List[str]] = None
+    prevention: Optional[List[str]] = None
+    result_json: Optional[Dict[str, Any]] = None
+
 class AssistantChatRequest(BaseModel):
-    message: str                   # The farmer's question
-    language: str = "en"           # "en" | "bn" | "hi" — response language hint
-    field_id: str = ""             # Optional field ID to anchor discussion
+    message: str                                          # The farmer's question
+    language: str = "en"                                  # "en" | "bn" | "hi" — response language hint
+    field_id: str = ""                                    # Optional field ID to anchor discussion
+    crop_id: str = ""                                     # Optional crop ID to anchor discussion
+    latest_scan: Optional[AssistantScanContext] = None    # Direct authoritative latest scan from device
+    recent_scans: Optional[List[AssistantScanContext]] = None # Recent completed scans from device
+    context_text: Optional[str] = None                    # Structured AgriSight context block
 
 # ── Intervention & Action Tracking Schema (Phase J) ────────────────────────────
 class InterventionCreate(BaseModel):

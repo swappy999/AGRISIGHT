@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { LANGUAGE_CONFIG, Language } from "@/translations";
-import { getFastApiUrl } from "@/lib/apiClient";
+import { LANGUAGE_CONFIG, Language } from "../translations";
+import { getFastApiUrl } from "../lib/apiClient";
 
 interface UseSpeechOutputReturn {
   isSpeaking: boolean;

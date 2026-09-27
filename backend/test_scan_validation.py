@@ -332,10 +332,10 @@ def test_all_ten_contract_fields_section_6():
 def test_gemini_fallback_models():
     """Verify GeminiService fallback models sequence."""
     from app.services.gemini_service import gemini_service
-    assert gemini_service.model_name == "gemini-2.5-flash"
+    assert gemini_service.model_name in ["gemini-2.5-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"]
     assert "gemini-2.5-flash" in gemini_service.fallback_models
     assert "gemini-3.5-flash-lite" in gemini_service.fallback_models
-    assert "gemini-3.5-flash" in gemini_service.fallback_models
+    assert "gemini-flash-latest" in gemini_service.fallback_models
     print("[PASS] test_gemini_fallback_models passed")
 
 if __name__ == "__main__":

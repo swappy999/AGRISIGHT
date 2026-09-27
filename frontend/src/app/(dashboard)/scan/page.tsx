@@ -10,6 +10,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { useTranslation, LANGUAGE_CONFIG } from "@/context/LanguageContext";
 import { api, logAndroidScan } from "@/lib/apiClient";
 import { useSpeechInput } from "@/hooks/useSpeechInput";
+import { normalizeSpeechTranscript } from "@/lib/speechNormalization";
 import { useCapacitorBackButton } from "@/hooks/useCapacitorBackButton";
 import { loadEdgeModel, validateImage as edgeValidateImage, resetEdgeModel, type EdgeValidationResult } from "@/lib/edgeValidator";
 
@@ -144,6 +145,13 @@ function ScanContent() {
 
   // Voice input hook
   const speech = useSpeechInput(language);
+
+  // Sync speech transcript into question state
+  useEffect(() => {
+    if (speech.transcript) {
+      setQuestion(speech.transcript);
+    }
+  }, [speech.transcript]);
 
   // Dynamic analysis stages with localized text
   const analysisStages = [
@@ -539,7 +547,8 @@ function ScanContent() {
 
 
   // ── Analysis Pipeline Execution ──────────────────────────────
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (bypassEdgeParam?: boolean | React.MouseEvent<HTMLElement>) => {
+    const bypassEdge = bypassEdgeParam === true;
     if (!selectedFile || step === "analyzing") return;
 
     // ── Reset all state for fresh scan ─────────────────────────
@@ -552,46 +561,44 @@ function ScanContent() {
     let stageIndicator = "EDGE_VALIDATION";
 
     try {
-      // ════════════════════════════════════════════════════════
-      // STAGE -1: OPTIONAL LOCAL EDGE AI VALIDATION (no cloud call)
-      // Determines CROP / NON_CROP / UNCERTAIN entirely in-browser.
-      // SPRINT RULE (a2.md Section 1): ONLINE-ONLY. Edge AI must NEVER block execution.
-      // If edge model fails to load, gracefully fall through to backend Gemini Vision.
-      // ════════════════════════════════════════════════════════
-      setEdgeState({ status: "loading" });
+      if (!bypassEdge) {
+        // ════════════════════════════════════════════════════════
+        // STAGE -1: OPTIONAL LOCAL EDGE AI VALIDATION (no cloud call)
+        // Determines CROP / NON_CROP / UNCERTAIN entirely in-browser.
+        // SPRINT RULE: Edge AI must NEVER block execution.
+        // If edge model fails or rejects, allow user bypass / fallback.
+        // ════════════════════════════════════════════════════════
+        setEdgeState({ status: "loading" });
 
-      let edgeResult: EdgeValidationResult | null = null;
-      try {
-        await loadEdgeModel();
-        setEdgeState({ status: "validating" });
-        edgeResult = await edgeValidateImage(selectedFile);
-        setLastEdgeResult(edgeResult);
+        let edgeResult: EdgeValidationResult | null = null;
+        try {
+          await loadEdgeModel();
+          setEdgeState({ status: "validating" });
+          edgeResult = await edgeValidateImage(selectedFile);
+          setLastEdgeResult(edgeResult);
 
-        console.info(`[EdgeAI] Decision: ${edgeResult.decision} (${(edgeResult.confidence * 100).toFixed(1)}%) in ${edgeResult.inferenceMs}ms`);
-      } catch (edgeLoadErr: any) {
-        // Model unavailable or not supported — online sprint fallback.
-        console.warn("[EdgeAI] Edge model not available. Proceeding with cloud Gemini Vision analysis:", edgeLoadErr?.message || edgeLoadErr);
-        setEdgeState({ status: "idle" });
-      }
+          console.info(`[EdgeAI] Decision: ${edgeResult.decision} (${(edgeResult.confidence * 100).toFixed(1)}%) in ${edgeResult.inferenceMs}ms`);
+        } catch (edgeLoadErr: any) {
+          // Model unavailable or not supported — online sprint fallback.
+          console.warn("[EdgeAI] Edge model not available. Proceeding with cloud Gemini Vision analysis:", edgeLoadErr?.message || edgeLoadErr);
+          setEdgeState({ status: "idle" });
+        }
 
-      // ── Branch on edge decision (only if edge model ran successfully) ──────
-      if (edgeResult) {
-        if (edgeResult.decision === "NON_CROP") {
-          // REJECT — show non-crop UI, no cloud request
+        // ── Branch on edge decision (only if edge model ran and strictly found NON_CROP) ──────
+        if (edgeResult && edgeResult.decision === "NON_CROP") {
           setEdgeState({ status: "NON_CROP", confidence: edgeResult.confidence });
           setStep("edge-rejected");
-          return;  // ← STOPS HERE. No Gemini call, no diagnosis, no DB record.
+          return;
         }
 
-        if (edgeResult.decision === "UNCERTAIN") {
-          // UNCERTAIN — ask for clearer image, no cloud request
+        if (edgeResult && edgeResult.decision === "UNCERTAIN") {
           setEdgeState({ status: "UNCERTAIN" });
           setStep("edge-rejected");
-          return;  // ← STOPS HERE. No Gemini call.
+          return;
         }
       }
 
-      // CROP or edge bypassed — continue to existing cloud pipeline
+      // CROP or edge bypassed — continue to diagnosis pipeline
       setEdgeState({ status: "idle" });
 
       // ════════════════════════════════════════════════════════
@@ -637,6 +644,18 @@ function ScanContent() {
         }
       }
 
+      // Clean and normalize user observation before sending to Gemini / Local AI (Section 15, 16)
+      const rawVoiceQuestion = question.trim();
+      const normalizedVoiceQuestion = normalizeSpeechTranscript(rawVoiceQuestion);
+
+      if (process.env.NODE_ENV !== "production" && rawVoiceQuestion) {
+        console.debug("[Voice Payload Audit]", {
+          VOICE_RAW: rawVoiceQuestion,
+          VOICE_NORMALIZED: normalizedVoiceQuestion,
+          VOICE_FINAL: normalizedVoiceQuestion,
+        });
+      }
+
       // Stage 2: AI Diagnosis & Vision Analysis
       setAnalysisStage(2);
       stageIndicator = "AI_PATHOLOGY";
@@ -644,7 +663,7 @@ function ScanContent() {
         fileToSend,
         lat,
         lon,
-        question.trim() || undefined,
+        normalizedVoiceQuestion || undefined,
         selectedCropId || undefined,
         selectedFieldId || undefined,
         language
@@ -653,6 +672,27 @@ function ScanContent() {
       // Stage 3: Structuring Prescription Insights
       setAnalysisStage(3);
       stageIndicator = "RESULT_PACKAGING";
+
+      const inner = result?.result || result || {};
+      const isNonCrop =
+        result?.is_agricultural === false ||
+        inner?.is_agricultural === false ||
+        result?.status === "non_crop" ||
+        inner?.status === "non_crop" ||
+        result?.validation_status === "NON_CROP" ||
+        inner?.validation_status === "NON_CROP" ||
+        (result?.disease && result.disease.toLowerCase() === "non-crop image") ||
+        (inner?.disease && inner.disease.toLowerCase() === "non-crop image");
+
+      if (isNonCrop) {
+        const conf = typeof inner.confidence === "number" ? inner.confidence : 0.95;
+        setEdgeState({
+          status: "NON_CROP",
+          confidence: conf > 1 ? conf / 100 : conf,
+        });
+        setStep("edge-rejected");
+        return;
+      }
 
       if (result && result.id) {
         try {
@@ -1290,10 +1330,10 @@ function ScanContent() {
                   <span className="material-symbols-outlined text-primary text-lg shrink-0">cloud_done</span>
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <p className="font-bold text-on-surface text-sm">
-                      {language === "bn" ? "অনলাইন ক্লাউড বিশ্লেষণ সক্রিয়" : language === "hi" ? "ऑनलाइन क्लाउड विश्लेषण सक्रिय" : "Online Gemini Cloud Analysis Active"}
+                      {language === "bn" ? "বিশ্লেষণ প্রস্তুত" : language === "hi" ? "विश्लेषण तैयार है" : "Analysis Ready"}
                     </p>
                     <p className="text-xs text-on-surface-variant font-medium">
-                      {language === "bn" ? "সরাসরি ক্লাউড AI মডেলের মাধ্যমে নিখুঁত রোগ ও ফসল বিশ্লেষণ সম্পন্ন হবে।" : language === "hi" ? "सीधे क्लाउड AI द्वारा सटीक रोग व फसल विश्लेषण किया जाएगा।" : "Your scan will be analyzed directly with Gemini Vision cloud intelligence."}
+                      {language === "bn" ? "সরাসরি ক্লাউডের মাধ্যমে ফসলের রোগ বিশ্লেষণ সম্পন্ন হবে।" : language === "hi" ? "फसल रोग विश्लेषण सीधे किया जाएगा।" : "Your scan will be analyzed and results prepared shortly."}
                     </p>
                   </div>
                 </div>
@@ -1375,6 +1415,106 @@ function ScanContent() {
                 </div>
               )}
 
+              {/* ── Optional Voice Observation (a2.md Section 1, 3, 17) ── */}
+              <div className="bg-surface-container-low rounded-2xl p-4 sm:p-5 border border-outline-variant/15 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-base" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      mic
+                    </span>
+                    <h3 className="text-xs font-black text-on-surface uppercase tracking-wider">
+                      {language === "bn" ? "আপনি কী লক্ষ্য করেছেন? (ঐচ্ছিক)" : language === "hi" ? "आपने क्या देखा? (वैकल्पिक)" : "What did you notice? (Optional)"}
+                    </h3>
+                  </div>
+                  {speech.state === "listening" && (
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-error animate-pulse">
+                      <span className="w-2 h-2 rounded-full bg-error" />
+                      {language === "bn" ? "রেকর্ড হচ্ছে..." : language === "hi" ? "रिकॉर्डिंग जारी..." : "Listening..."}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-on-surface-variant font-medium">
+                  {language === "bn"
+                    ? "কখন থেকে পাতা হলুদ বা দাগ শুরু হয়েছে তা বলুন বা লিখুন।"
+                    : language === "hi"
+                    ? "बताएं कि पत्तियां कब से पीली हुईं या क्या लक्षण दिखे।"
+                    : "Tell us when symptoms started or what changed on the plant."}
+                </p>
+
+                {/* Speak button and controls */}
+                <div className="flex items-center gap-2">
+                  {speech.state === "listening" ? (
+                    <button
+                      type="button"
+                      onClick={speech.stopListening}
+                      className="flex-1 py-2.5 px-4 bg-error text-on-error font-bold rounded-xl flex items-center justify-center gap-2 text-xs shadow-md shadow-error/20 active:scale-95 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-base">stop_circle</span>
+                      {language === "bn" ? "রেকর্ড থামান" : language === "hi" ? "रिकॉर्डिंग रोकें" : "Stop Recording"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        speech.reset();
+                        speech.startListening();
+                      }}
+                      className="flex-1 py-2.5 px-4 bg-primary/10 text-primary font-bold rounded-xl flex items-center justify-center gap-2 text-xs hover:bg-primary/15 active:scale-95 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-base">mic</span>
+                      {question
+                        ? (language === "bn" ? "পুনরায় বলুন" : language === "hi" ? "फिर से बोलें" : "Re-record observation")
+                        : (language === "bn" ? "মুখে বলুন" : language === "hi" ? "बोलकर बताएं" : "Tap to Speak")}
+                    </button>
+                  )}
+                  {question && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        speech.reset();
+                        setQuestion("");
+                      }}
+                      className="px-3 py-2.5 bg-surface-container-highest text-on-surface-variant font-bold rounded-xl text-xs hover:bg-surface-dim transition-colors"
+                      title="Clear"
+                    >
+                      <span className="material-symbols-outlined text-base">backspace</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Editable Transcript & Typing Fallback */}
+                <div className="relative">
+                  <textarea
+                    value={question}
+                    onChange={(e) => {
+                      setQuestion(e.target.value);
+                      speech.setTranscript(e.target.value);
+                    }}
+                    placeholder={
+                      language === "bn"
+                        ? "অথবা এখানে টাইপ করে লিখুন..."
+                        : language === "hi"
+                        ? "या यहाँ टाइप करके अपनी बात लिखें..."
+                        : "Or type your observation here..."
+                    }
+                    rows={2}
+                    className="w-full bg-surface-container-highest/60 text-on-surface text-xs rounded-xl p-3 border border-outline-variant/15 focus:border-primary outline-none resize-none transition-colors"
+                  />
+                  {question && (
+                    <div className="flex items-center justify-between pt-1 text-[11px] text-primary font-bold">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs">check_circle</span>
+                        {language === "bn" ? "পর্যবেক্ষণ যুক্ত হয়েছে" : language === "hi" ? "अवलोकन दर्ज हुआ" : "Observation recorded"}
+                      </span>
+                      <span className="text-[10px] text-on-surface-variant font-normal">
+                        {language === "bn" ? "প্রয়োজনে এডিট করুন" : language === "hi" ? "संपादन योग्य" : "Editable"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Analyze CTA */}
               <button
                 id="analyze-leaf-btn"
@@ -1408,7 +1548,7 @@ function ScanContent() {
           <div className="flex flex-col items-center justify-center py-8 space-y-8">
             <div className="relative">
               {previewUrl && (
-                <div className="w-32 h-32 rounded-[2rem] overflow-hidden shadow-xl border-4 border-surface-container-lowest">
+                <div className="relative w-32 h-32 rounded-[2rem] overflow-hidden shadow-xl border-4 border-surface-container-lowest">
                   <Image src={previewUrl} alt="Analyzing leaf" fill className="object-cover opacity-80" />
                 </div>
               )}
@@ -1423,18 +1563,12 @@ function ScanContent() {
               <div className="absolute -inset-2 rounded-[2.5rem] border-2 border-primary/30 animate-pulse" />
             </div>
 
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-extrabold text-on-surface tracking-tight">
-                {edgeState.status === "loading"
-                  ? "Preparing scan AI..."
-                  : edgeState.status === "validating"
-                  ? "Validating crop image..."
-                  : t("analyzingTitle")}
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-extrabold text-on-surface tracking-tight">
+                {language === "bn" ? "স্থানীয় AI প্রক্রিয়াকরণ করছে" : language === "hi" ? "स्थानीय AI प्रोसेस कर रहा है" : "Local AI is processing"}
               </h2>
               <p className="text-sm text-on-surface-variant font-medium">
-                {edgeState.status === "loading" || edgeState.status === "validating"
-                  ? "Running local crop check — no internet needed"
-                  : t("analyzingInstruction")}
+                {language === "bn" ? "আপনার পাতা এবং মাঠের পরিস্থিতি পরীক্ষা করা হচ্ছে।" : language === "hi" ? "आपकी पत्ती और खेत की स्थिति की जाँच की जा रही है।" : "Checking your leaf and field conditions."}
               </p>
             </div>
 
@@ -1446,7 +1580,9 @@ function ScanContent() {
                     <span className="material-symbols-outlined text-sm animate-spin" style={{ animationDuration: "1.5s" }}>refresh</span>
                   </div>
                   <span className="text-sm font-semibold text-primary">
-                    {edgeState.status === "loading" ? "Loading edge AI model..." : "Running crop detection..."}
+                    {edgeState.status === "loading"
+                      ? (language === "bn" ? "স্ক্যান প্রস্তুত হচ্ছে..." : language === "hi" ? "स्कैन तैयार हो रहा है..." : "Preparing your scan...")
+                      : (language === "bn" ? "পাতার বিশ্লেষণ চলছে..." : language === "hi" ? "पत्ती की जाँच हो रही है..." : "Checking the leaf...")}
                   </span>
                   <span className="ml-auto flex gap-0.5">
                     {[0,1,2].map((j) => (
@@ -1517,57 +1653,86 @@ function ScanContent() {
 
         {/* ══ STEP: EDGE-REJECTED — NON_CROP or UNCERTAIN ══ */}
         {step === "edge-rejected" && (
-          <div className="space-y-4">
+          <div className="space-y-4 max-w-lg mx-auto">
             {/* NON_CROP rejection card */}
             {edgeState.status === "NON_CROP" && (
               <div
                 id="edge-non-crop-rejection"
-                className="bg-amber-500/10 border border-amber-500/30 rounded-[2rem] p-6 sm:p-8 flex flex-col items-center text-center gap-5"
+                className="bg-surface-container-lowest border-2 border-amber-500/40 rounded-[2.5rem] p-6 sm:p-8 flex flex-col items-center text-center gap-6 shadow-2xl relative z-10"
               >
-                <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-amber-600 text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                {/* Visual Status Indicator */}
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    warning
+                  </span>
                 </div>
+
+                {/* Scanned thumbnail with strict relative scoping */}
                 {previewUrl && (
-                  <div className="w-28 h-28 rounded-[1.25rem] overflow-hidden border-2 border-amber-500/30 shadow-md opacity-75">
-                    <Image src={previewUrl} alt="Rejected image" fill className="object-cover" />
+                  <div className="relative w-40 h-40 rounded-2xl overflow-hidden border-2 border-amber-500/30 shadow-inner bg-surface-container-high shrink-0">
+                    <Image
+                      src={previewUrl}
+                      alt="Scanned item"
+                      fill
+                      className="object-cover"
+                      sizes="160px"
+                    />
+                    <div className="absolute bottom-1.5 inset-x-2 bg-black/75 backdrop-blur-sm rounded-lg py-0.5 text-[10px] font-bold text-white text-center">
+                      {language === "bn" ? "স্ক্যান করা ছবি" : language === "hi" ? "स्कैन की गई फोटो" : "Scanned Image"}
+                    </div>
                   </div>
                 )}
-                <div className="space-y-2">
-                  <h2 className="text-xl font-extrabold text-on-surface">
-                    {language === "bn" ? "⚠️ অবৈধ ফসলের ছবি" : language === "hi" ? "⚠️ अमान्य फसल तस्वीर" : "⚠️ Invalid Crop Image"}
+
+                {/* Clear, High-Contrast Diagnostic Feedback */}
+                <div className="space-y-2 max-w-sm">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-black uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    {language === "bn" ? "অকৃষি উপাদান শনাক্ত" : language === "hi" ? "गैर-फसल तत्व पहचाना गया" : "Non-Crop Object"}
+                  </div>
+                  <h2 className="text-2xl font-black text-on-surface tracking-tight">
+                    {language === "bn" ? "অবৈধ ফসলের ছবি" : language === "hi" ? "अमान्य फसल तस्वीर" : "Invalid Crop Image"}
                   </h2>
-                  <p className="text-sm text-on-surface-variant font-medium leading-relaxed max-w-xs">
+                  <p className="text-xs sm:text-sm text-on-surface-variant font-medium leading-relaxed">
                     {language === "bn"
-                      ? "এই ছবিটি কোনো ফসল বা উদ্ভিদের নয়। সঠিক কৃষিভিত্তিক বিশ্লেষণের জন্য অনুগ্রহ করে পাতার পরিষ্কার ছবি দিন।"
+                      ? "এই ছবিটি কোনো ফসল বা উদ্ভিদের পাতার নয়। সঠিক রোগ নির্ণয়ের জন্য একটি গাছের পাতার ছবি তুলুন।"
                       : language === "hi"
-                      ? "यह तस्वीर किसी फसल या पौधे की नहीं लगती है। सटीक कृषि विश्लेषण के लिए कृपया किसी पत्ती की साफ फोटो लें।"
-                      : "This image does not appear to contain a crop or plant suitable for agricultural analysis."}
-                  </p>
-                  <p className="text-xs text-on-surface-variant/60 font-mono">
-                    {language === "bn" ? "অকৃষি নিশ্চিততা" : language === "hi" ? "गैर-फसल विश्वास" : "Non-crop confidence"}: {(edgeState.confidence * 100).toFixed(1)}%
-                    {lastEdgeResult && ` · ${lastEdgeResult.inferenceMs}ms · ${lastEdgeResult.modelVersion}`}
+                      ? "यह तस्वीर किसी फसल या पौधे की पत्ती की नहीं है। सटीक रोग निदान के लिए किसी फसल की पत्ती की साफ फोटो लें।"
+                      : "This image does not contain a plant or crop leaf. Please photograph a real crop leaf for accurate disease diagnosis."}
                   </p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+
+                {/* Action CTA Stack: Retake (Primary) > Gallery > Force Analysis */}
+                <div className="flex flex-col gap-3 w-full">
                   <button
                     id="edge-retake-btn"
                     type="button"
                     onClick={() => triggerNativeCapture(CameraSource.Camera)}
-                    className="flex-1 py-3.5 px-5 bg-primary text-on-primary font-bold rounded-2xl shadow-md shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                    className="w-full py-4 px-6 bg-primary text-on-primary font-extrabold rounded-2xl shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all text-sm flex items-center justify-center gap-2.5"
                     aria-label="Retake photo of a crop"
                   >
-                    <span className="material-symbols-outlined text-base">photo_camera</span>
-                    {t("reTake")}
+                    <span className="material-symbols-outlined text-lg">photo_camera</span>
+                    {language === "bn" ? "সঠিক পাতার ছবি তুলুন" : language === "hi" ? "पत्ती की सही फोटो लें" : "Retake Leaf Photo"}
                   </button>
+
                   <button
                     id="edge-upload-another-btn"
                     type="button"
                     onClick={() => triggerNativeCapture(CameraSource.Photos)}
-                    className="flex-1 py-3.5 px-5 bg-surface-container-highest text-on-surface font-bold rounded-2xl hover:bg-surface-dim active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                    className="w-full py-3.5 px-4 bg-surface-container-high text-on-surface font-bold rounded-2xl hover:bg-surface-dim active:scale-95 transition-all text-xs flex items-center justify-center gap-2 border border-outline-variant/20"
                     aria-label="Upload another image"
                   >
                     <span className="material-symbols-outlined text-base">photo_library</span>
-                    {language === "bn" ? "অন্য ছবি বেছে নিন" : language === "hi" ? "दूसरी फोटो चुनें" : "Upload Another"}
+                    {language === "bn" ? "গ্যালারি থেকে অন্য ছবি নির্বাচন" : language === "hi" ? "गैलरी से दूसरी फोटो चुनें" : "Choose from Gallery"}
+                  </button>
+
+                  <button
+                    id="edge-analyze-anyway-btn"
+                    type="button"
+                    onClick={() => handleAnalyze(true)}
+                    className="py-2.5 px-4 text-xs font-semibold text-on-surface-variant/70 hover:text-on-surface active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">psychology</span>
+                    {language === "bn" ? "তথাপি জোরপূর্বক বিশ্লেষণ করবেন? চাপুন" : language === "hi" ? "फिर भी जबरन विश्लेषण करें? यहाँ क्लिक करें" : "Force Analysis Anyway"}
                   </button>
                 </div>
               </div>
@@ -1577,21 +1742,34 @@ function ScanContent() {
             {edgeState.status === "UNCERTAIN" && (
               <div
                 id="edge-uncertain-card"
-                className="bg-blue-500/10 border border-blue-500/30 rounded-[2rem] p-6 sm:p-8 flex flex-col items-center text-center gap-5"
+                className="bg-surface-container-lowest border-2 border-blue-500/40 rounded-[2.5rem] p-6 sm:p-8 flex flex-col items-center text-center gap-6 shadow-2xl relative z-10"
               >
-                <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-blue-600 text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>photo_camera</span>
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    photo_camera
+                  </span>
                 </div>
+
                 {previewUrl && (
-                  <div className="w-28 h-28 rounded-[1.25rem] overflow-hidden border-2 border-blue-500/30 shadow-md opacity-60">
-                    <Image src={previewUrl} alt="Unclear image" fill className="object-cover" />
+                  <div className="relative w-40 h-40 rounded-2xl overflow-hidden border-2 border-blue-500/30 shadow-inner bg-surface-container-high shrink-0">
+                    <Image
+                      src={previewUrl}
+                      alt="Unclear image"
+                      fill
+                      className="object-cover"
+                      sizes="160px"
+                    />
+                    <div className="absolute bottom-1.5 inset-x-2 bg-black/75 backdrop-blur-sm rounded-lg py-0.5 text-[10px] font-bold text-white text-center">
+                      {language === "bn" ? "অস্পষ্ট ছবি" : language === "hi" ? "अस्पष्ट फोटो" : "Unclear Subject"}
+                    </div>
                   </div>
                 )}
-                <div className="space-y-2">
-                  <h2 className="text-xl font-extrabold text-on-surface">
+
+                <div className="space-y-2 max-w-sm">
+                  <h2 className="text-2xl font-black text-on-surface tracking-tight">
                     {language === "bn" ? "📷 অস্পষ্ট ছবি" : language === "hi" ? "📷 अस्पष्ट फोटो" : "📷 Unclear Image"}
                   </h2>
-                  <p className="text-sm text-on-surface-variant font-medium leading-relaxed max-w-xs">
+                  <p className="text-xs sm:text-sm text-on-surface-variant font-medium leading-relaxed">
                     {language === "bn"
                       ? "ছবিটি পর্যাপ্ত স্পষ্ট নয়। অনুগ্রহ করে ভালো আলোতে পাতার আরও কাছাকাছি এবং পরিষ্কার ছবি তুলুন।"
                       : language === "hi"
@@ -1599,16 +1777,29 @@ function ScanContent() {
                       : "The image is too unclear to determine if it contains a crop. Please take a clearer, well-lit photo of the plant leaf."}
                   </p>
                 </div>
-                <button
-                  id="edge-uncertain-retake-btn"
-                  type="button"
-                  onClick={() => triggerNativeCapture(CameraSource.Camera)}
-                  className="w-full max-w-xs py-3.5 bg-primary text-on-primary font-bold rounded-2xl shadow-md shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
-                  aria-label="Retake clearer photo"
-                >
-                  <span className="material-symbols-outlined text-base">photo_camera</span>
-                  {t("reTake")}
-                </button>
+
+                <div className="flex flex-col gap-3 w-full">
+                  <button
+                    id="edge-uncertain-retake-btn"
+                    type="button"
+                    onClick={() => triggerNativeCapture(CameraSource.Camera)}
+                    className="w-full py-4 px-6 bg-primary text-on-primary font-extrabold rounded-2xl shadow-lg shadow-primary/25 hover:bg-primary/90 active:scale-95 transition-all text-sm flex items-center justify-center gap-2.5"
+                    aria-label="Retake clearer photo"
+                  >
+                    <span className="material-symbols-outlined text-lg">photo_camera</span>
+                    {t("reTake")}
+                  </button>
+
+                  <button
+                    id="edge-uncertain-analyze-anyway-btn"
+                    type="button"
+                    onClick={() => handleAnalyze(true)}
+                    className="py-2.5 px-4 text-xs font-semibold text-on-surface-variant/70 hover:text-on-surface active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">psychology</span>
+                    {language === "bn" ? "তথাপি বিশ্লেষণ করুন" : language === "hi" ? "फिर भी विश्लेषण करें" : "Analyze Anyway"}
+                  </button>
+                </div>
               </div>
             )}
           </div>

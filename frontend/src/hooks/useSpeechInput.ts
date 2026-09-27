@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { LANGUAGE_CONFIG, Language } from "@/translations";
+import { normalizeSpeechTranscript, logVoiceDiagnostics } from "@/lib/speechNormalization";
 
 export type SpeechInputState =
   | "idle"
@@ -24,20 +25,25 @@ interface UseSpeechInputReturn {
   setTranscript: (text: string) => void;
 }
 
-const MAX_SESSION_DURATION_MS = 30000; // 30s session cap to avoid accidental continuous listening
-const INITIAL_SILENCE_TIMEOUT_MS = 10000; // 10s initial silence before auto-stop
-const TRAILING_SILENCE_TIMEOUT_MS = 5000; // 5s silence after speaking before auto-stop
+const MAX_SESSION_DURATION_MS = 25000; // 25s session cap
+const INITIAL_SILENCE_TIMEOUT_MS = 8000; // 8s initial silence before auto-stop
+const TRAILING_SILENCE_TIMEOUT_MS = 4000; // 4s silence after speaking before finalizing
 
 export function useSpeechInput(agriLang: string = "en"): UseSpeechInputReturn {
-  const [transcript, setTranscript] = useState("");
+  const [transcript, setTranscriptState] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [state, setState] = useState<SpeechInputState>("idle");
 
-  const stateRef = useRef<SpeechInputState>("idle");
+  // Session Protection & Race Condition Locks (Section 6, 7, 8)
+  const sessionIdRef = useRef<number>(0);
+  const isStartingRef = useRef<boolean>(false);
+  const isListeningRef = useRef<boolean>(false);
+
+  // Authoritative State Storage (Section 2, 3, 13)
+  const finalTranscriptRef = useRef<string>("");
+  const interimTranscriptRef = useRef<string>("");
+
   const recognitionRef = useRef<any | null>(null);
-  const isManualStopRef = useRef(false);
-  const restartCountRef = useRef(0);
-  const accumulatedFinalRef = useRef("");
   const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -56,28 +62,12 @@ export function useSpeechInput(agriLang: string = "en"): UseSpeechInputReturn {
     }
   }, []);
 
-  // Sync ref with state
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-
-  // If language changes while listening, cleanly reset
-  useEffect(() => {
-    if (recognitionRef.current && (stateRef.current === "listening" || stateRef.current === "requesting")) {
-      isManualStopRef.current = true;
-      try {
-        recognitionRef.current.abort();
-      } catch {}
-      recognitionRef.current = null;
-      clearAllTimeouts();
-      setState("idle");
-    }
-  }, [agriLang, clearAllTimeouts]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      isManualStopRef.current = true;
+      sessionIdRef.current += 1;
+      isStartingRef.current = false;
+      isListeningRef.current = false;
       clearAllTimeouts();
       if (recognitionRef.current) {
         try {
@@ -88,9 +78,16 @@ export function useSpeechInput(agriLang: string = "en"): UseSpeechInputReturn {
     };
   }, [clearAllTimeouts]);
 
+  // Clean stop handler (Section 9)
   const stopListening = useCallback(() => {
-    isManualStopRef.current = true;
+    logVoiceDiagnostics("STOP_REQUESTED", { sessionId: sessionIdRef.current });
+
+    // Invalidate session so late events are rejected
+    sessionIdRef.current += 1;
+    isStartingRef.current = false;
+    isListeningRef.current = false;
     clearAllTimeouts();
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -99,55 +96,91 @@ export function useSpeechInput(agriLang: string = "en"): UseSpeechInputReturn {
           recognitionRef.current.abort();
         } catch {}
       }
+      recognitionRef.current = null;
     }
-    setState("captured");
+
+    interimTranscriptRef.current = "";
     setInterimTranscript("");
+
+    // Authoritative final transcript deduplication
+    const cleaned = normalizeSpeechTranscript(finalTranscriptRef.current);
+    finalTranscriptRef.current = cleaned;
+    setTranscriptState(cleaned);
+    setState("captured");
+
+    logVoiceDiagnostics("SESSION_STOPPED", { finalTranscript: cleaned });
   }, [clearAllTimeouts]);
 
+  // Reset handler
   const reset = useCallback(() => {
-    isManualStopRef.current = true;
+    sessionIdRef.current += 1;
+    isStartingRef.current = false;
+    isListeningRef.current = false;
     clearAllTimeouts();
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
       } catch {}
       recognitionRef.current = null;
     }
-    accumulatedFinalRef.current = "";
-    setTranscript("");
+
+    finalTranscriptRef.current = "";
+    interimTranscriptRef.current = "";
+    setTranscriptState("");
     setInterimTranscript("");
     setState("idle");
   }, [clearAllTimeouts]);
 
+  // Sync external/manual user edits with authoritative ref
+  const setTranscript = useCallback((text: string) => {
+    finalTranscriptRef.current = text;
+    interimTranscriptRef.current = "";
+    setTranscriptState(text);
+    setInterimTranscript("");
+  }, []);
+
+  // Language switch handler
+  useEffect(() => {
+    if (isListeningRef.current || isStartingRef.current) {
+      stopListening();
+    }
+  }, [agriLang, stopListening]);
+
+  // Start listening handler with bulletproof duplicate and session protection
   const startListening = useCallback(async () => {
     if (!isSupported) {
       setState("unsupported");
       return;
     }
 
+    // Prevent double start on rapid taps (Section 8)
+    if (isStartingRef.current || isListeningRef.current) {
+      logVoiceDiagnostics("START_IGNORED_ALREADY_ACTIVE", {
+        starting: isStartingRef.current,
+        listening: isListeningRef.current,
+      });
+      return;
+    }
+
+    isStartingRef.current = true;
     clearAllTimeouts();
 
-    // Check media permission first to avoid silent browser rejection
+    // Check media permission first
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach((track) => track.stop());
       } catch (err: any) {
         if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          isStartingRef.current = false;
           setState("denied");
           return;
         }
       }
     }
 
-    isManualStopRef.current = false;
-    restartCountRef.current = 0;
-    accumulatedFinalRef.current = "";
-    setTranscript("");
-    setInterimTranscript("");
-    setState("requesting");
-
-    // Abort any previous instance
+    // Stop any stale recognition instance
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
@@ -155,98 +188,144 @@ export function useSpeechInput(agriLang: string = "en"): UseSpeechInputReturn {
       recognitionRef.current = null;
     }
 
+    // Create a new, isolated recognition session (Section 6 & 7)
+    sessionIdRef.current += 1;
+    const currentSessionId = sessionIdRef.current;
+
+    // Reset transcription buffers for fresh speech session
+    finalTranscriptRef.current = "";
+    interimTranscriptRef.current = "";
+    setTranscriptState("");
+    setInterimTranscript("");
+    setState("requesting");
+
     try {
       const SpeechRecognitionCtor =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
       const recognition = new SpeechRecognitionCtor();
-      recognition.lang = LANGUAGE_CONFIG[agriLang as Language]?.speech || "en-IN";
+      const targetLang = LANGUAGE_CONFIG[agriLang as Language]?.speech || "en-IN";
+      recognition.lang = targetLang;
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
-      recognition.onstart = () => {
-        setState("listening");
-        restartCountRef.current = 0;
+      logVoiceDiagnostics("SESSION_START", { sessionId: currentSessionId, language: targetLang });
 
-        // Auto-terminate session after 30 seconds max to prevent continuous background listening
+      recognition.onstart = () => {
+        if (sessionIdRef.current !== currentSessionId) return;
+        isStartingRef.current = false;
+        isListeningRef.current = true;
+        setState("listening");
+
+        // Session duration safety cap
         sessionTimeoutRef.current = setTimeout(() => {
-          stopListening();
+          if (sessionIdRef.current === currentSessionId) {
+            stopListening();
+          }
         }, MAX_SESSION_DURATION_MS);
 
-        // Auto-terminate if initial silence persists for 10 seconds
+        // Initial silence auto-stop
         silenceTimeoutRef.current = setTimeout(() => {
-          stopListening();
+          if (sessionIdRef.current === currentSessionId) {
+            stopListening();
+          }
         }, INITIAL_SILENCE_TIMEOUT_MS);
       };
 
+      // Proper Result Index Handling & Never Appending Cumulative Results (Section 2, 3, 13)
       recognition.onresult = (event: any) => {
-        let currentFinal = "";
-        let currentInterim = "";
+        if (sessionIdRef.current !== currentSessionId) return;
 
-        for (let i = 0; i < event.results.length; i++) {
-          const item = event.results[i];
-          const text = item[0]?.transcript || "";
-          if (item.isFinal) {
-            currentFinal += (currentFinal ? " " : "") + text.trim();
+        let interimText = "";
+
+        // Process starting from event.resultIndex to avoid re-reading past events
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const chunk = result[0]?.transcript?.trim() || "";
+          if (!chunk) continue;
+
+          if (result.isFinal) {
+            // Append final chunk once to the authoritative final transcript
+            const existing = finalTranscriptRef.current.trim();
+            finalTranscriptRef.current = existing ? `${existing} ${chunk}` : chunk;
+
+            // Apply conservative phrase normalization to prevent recognition echo
+            finalTranscriptRef.current = normalizeSpeechTranscript(finalTranscriptRef.current);
           } else {
-            currentInterim += (currentInterim ? " " : "") + text.trim();
+            // Replace interim text with current in-flight speech
+            interimText += (interimText ? " " : "") + chunk;
           }
         }
 
-        accumulatedFinalRef.current = currentFinal;
-        const combined = currentFinal
-          ? currentInterim
-            ? `${currentFinal} ${currentInterim}`
-            : currentFinal
-          : currentInterim;
+        interimTranscriptRef.current = interimText;
 
-        setTranscript(combined);
-        setInterimTranscript(currentInterim);
+        // Display: FINAL_TRANSCRIPT + CURRENT_INTERIM_TRANSCRIPT (Section 2)
+        const combined = interimText
+          ? finalTranscriptRef.current
+            ? `${finalTranscriptRef.current} ${interimText}`
+            : interimText
+          : finalTranscriptRef.current;
+
+        setTranscriptState(combined);
+        setInterimTranscript(interimText);
+
+        logVoiceDiagnostics("RESULT_RECEIVED", {
+          sessionId: currentSessionId,
+          resultIndex: event.resultIndex,
+          final: finalTranscriptRef.current,
+          interim: interimText,
+        });
 
         // Reset trailing silence timeout on speech detected
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
         }
         silenceTimeoutRef.current = setTimeout(() => {
-          stopListening();
+          if (sessionIdRef.current === currentSessionId) {
+            stopListening();
+          }
         }, TRAILING_SILENCE_TIMEOUT_MS);
       };
 
       recognition.onerror = (event: any) => {
+        if (sessionIdRef.current !== currentSessionId) return;
+        logVoiceDiagnostics("RECOGNITION_ERROR", { sessionId: currentSessionId, error: event.error });
+
+        isStartingRef.current = false;
+        isListeningRef.current = false;
+        clearAllTimeouts();
+
         const err = event.error;
         if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
-          isManualStopRef.current = true;
-          clearAllTimeouts();
           setState("denied");
-        } else if (err === "no-speech") {
-          // Handled gracefully via timeouts
         } else if (err === "network") {
-          clearAllTimeouts();
           setState("network_error");
+        } else if (err === "no-speech") {
+          // No speech detected, cleanly transition to idle or captured
+          setState(finalTranscriptRef.current ? "captured" : "no_speech");
         } else if (err !== "aborted") {
-          clearAllTimeouts();
           setState("error");
         }
       };
 
       recognition.onend = () => {
-        clearAllTimeouts();
-        // If user did not manually stop and we were still in active listening mode,
-        // restart up to 2 times to prevent premature browser cutoff.
-        if (
-          !isManualStopRef.current &&
-          (stateRef.current === "listening" || stateRef.current === "requesting") &&
-          restartCountRef.current < 2
-        ) {
-          restartCountRef.current += 1;
-          try {
-            recognition.start();
-            return;
-          } catch {}
-        }
+        if (sessionIdRef.current !== currentSessionId) return;
+        logVoiceDiagnostics("SESSION_END", { sessionId: currentSessionId });
 
+        isStartingRef.current = false;
+        isListeningRef.current = false;
+        clearAllTimeouts();
+
+        // Clear interim
+        interimTranscriptRef.current = "";
         setInterimTranscript("");
+
+        // Finalize transcript
+        const cleaned = normalizeSpeechTranscript(finalTranscriptRef.current);
+        finalTranscriptRef.current = cleaned;
+        setTranscriptState(cleaned);
+
         setState((prev) =>
           prev === "listening" || prev === "requesting" || prev === "processing"
             ? "captured"
@@ -256,7 +335,10 @@ export function useSpeechInput(agriLang: string = "en"): UseSpeechInputReturn {
 
       recognitionRef.current = recognition;
       recognition.start();
-    } catch {
+    } catch (err: any) {
+      logVoiceDiagnostics("START_EXCEPTION", { error: err?.message || err });
+      isStartingRef.current = false;
+      isListeningRef.current = false;
       clearAllTimeouts();
       setState("error");
     }

@@ -18,6 +18,7 @@ export interface ProgressionData {
     severity: string;
     created_at: string;
     image_url: string;
+    crop?: string;
   } | null;
   smart_follow_up?: {
     recommended_days: number;

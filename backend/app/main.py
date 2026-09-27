@@ -56,6 +56,16 @@ def get_application() -> FastAPI:
     async def health_check():
         return {"status": "ok", "service": "agrisight-api", "version": settings.VERSION}
 
+    @app.get("/app-version")
+    async def get_app_version():
+        return {
+            "latestVersion": "1.2.0",
+            "latestVersionCode": 3,
+            "minSupportedVersionCode": 1,
+            "releaseNotes": "Enhanced crop vs non-crop discrimination, Gemini Cloud & Local AI unified integration.",
+            "downloadUrl": "https://agrisight-kn5u.onrender.com/download/app-debug.apk"
+        }
+
     @app.on_event("startup")
     async def startup_event():
         logger.info("Running startup tasks...")

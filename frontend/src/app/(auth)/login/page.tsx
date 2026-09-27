@@ -9,7 +9,7 @@ import { useTranslation, Language } from "@/context/LanguageContext";
 
 export default function LoginPage() {
   const { t, language, setLanguage } = useTranslation();
-  const { user, isVerified, refreshSession, signInWithGoogle, signInAsGuest } = useAuth();
+  const { user, isVerified, refreshSession, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -25,11 +25,6 @@ export default function LoginPage() {
       router.push("/dashboard");
     }
   }, [user, isVerified, router]);
-
-  const handleGuestLogin = () => {
-    signInAsGuest();
-    router.push("/dashboard");
-  };
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
@@ -238,23 +233,6 @@ export default function LoginPage() {
             {t("continueWithGoogle")}
               </>
             )}
-          </button>
-
-          {/* Guest Access Button */}
-          <button
-            id="btn-guest-login"
-            type="button"
-            onClick={handleGuestLogin}
-            className="w-full py-3.5 bg-primary/10 border-2 border-primary/25 text-primary font-bold rounded-xl shadow-sm hover:bg-primary/15 active:scale-[0.98] transition-all outline-none focus:ring-4 focus:ring-primary/20 flex items-center justify-center gap-2.5 text-[15px]"
-          >
-            <span className="material-symbols-outlined text-xl">person_outline</span>
-            <span>
-              {language === "hi"
-                ? "अतिथि के रूप में जारी रखें (Guest Mode)"
-                : language === "bn"
-                ? "গেস্ট হিসেবে প্রবেশ করুন (Guest Mode)"
-                : "Sign in as Guest (Instant Preview)"}
-            </span>
           </button>
 
           {/* Divider */}

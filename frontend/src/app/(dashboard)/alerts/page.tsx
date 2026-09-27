@@ -1,34 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { RealtimeAlerts } from "@/components/RealtimeAlerts";
+import { RealtimeAlerts, AlertStats } from "@/components/RealtimeAlerts";
 import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "@/context/LanguageContext";
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useState } from "react";
 
 export default function AlertsPage() {
   const { user } = useAuth();
-  const { t } = useTranslation();
-  const [stats, setStats] = useState({ total: 0, unread: 0, critical: 0 });
-
-  useEffect(() => {
-    if (!user) return;
-    async function loadStats() {
-      const { data } = await supabase
-        .from("notifications")
-        .select("type, is_read")
-        .eq("user_id", user!.id);
-      if (data) {
-        setStats({
-          total: data.length,
-          unread: data.filter((n) => !n.is_read).length,
-          critical: data.filter((n) => n.type === "critical").length,
-        });
-      }
-    }
-    loadStats();
-  }, [user]);
+  const { t, formatNumber } = useTranslation();
+  const [stats, setStats] = useState<AlertStats>({
+    total: 0,
+    unread: 0,
+    critical: 0,
+    totalScans: 0,
+    activeThreats: 0,
+  });
 
   return (
     <div className="p-4 lg:p-12 max-w-[1400px] mx-auto space-y-8 lg:space-y-12 pb-24 xl:pb-12">
@@ -54,7 +41,7 @@ export default function AlertsPage() {
       <div className="grid grid-cols-12 gap-4 lg:gap-12">
         {/* Alerts feed */}
         <div className="col-span-12 lg:col-span-8">
-          <RealtimeAlerts />
+          <RealtimeAlerts onStatsChange={setStats} />
         </div>
 
         {/* Sidebar panel — real stats, no fake text */}
@@ -68,23 +55,63 @@ export default function AlertsPage() {
                 {t("summary")}
               </h3>
               <div className="space-y-3">
+                <Link
+                  href="/analytics"
+                  className="flex justify-between items-center pb-2.5 border-b border-outline-variant/15 group hover:text-primary transition-colors"
+                >
+                  <span className="text-sm font-bold text-on-surface-variant group-hover:text-primary flex items-center gap-1.5 transition-colors">
+                    <span className="material-symbols-outlined text-base text-primary">document_scanner</span>
+                    {t("totalScans")}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-black text-on-surface text-lg group-hover:text-primary transition-colors">{formatNumber(stats.totalScans)}</span>
+                    <span className="material-symbols-outlined text-sm text-on-surface-variant group-hover:text-primary group-hover:translate-x-0.5 transition-transform">chevron_right</span>
+                  </div>
+                </Link>
+                <Link
+                  href="/analytics"
+                  className="flex justify-between items-center pb-2.5 border-b border-outline-variant/15 group hover:text-error transition-colors"
+                >
+                  <span className="text-sm font-bold text-on-surface-variant group-hover:text-error flex items-center gap-1.5 transition-colors">
+                    <span className="material-symbols-outlined text-base text-error">warning</span>
+                    {t("activeThreats")}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className={`font-black text-lg group-hover:underline ${stats.activeThreats > 0 ? "text-error" : "text-on-surface-variant"}`}>
+                      {formatNumber(stats.activeThreats)}
+                    </span>
+                    <span className="material-symbols-outlined text-sm text-on-surface-variant group-hover:text-error group-hover:translate-x-0.5 transition-transform">chevron_right</span>
+                  </div>
+                </Link>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-on-surface-variant">{t("totalAlerts")}</span>
-                  <span className="font-black text-on-surface text-lg">{stats.total}</span>
+                  <span className="font-black text-on-surface text-lg">{formatNumber(stats.total)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-on-surface-variant">{t("unread")}</span>
                   <span className={`font-black text-lg ${stats.unread > 0 ? "text-primary" : "text-on-surface-variant"}`}>
-                    {stats.unread}
+                    {formatNumber(stats.unread)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-on-surface-variant">{t("critical")}</span>
                   <span className={`font-black text-lg ${stats.critical > 0 ? "text-error" : "text-on-surface-variant"}`}>
-                    {stats.critical}
+                    {formatNumber(stats.critical)}
                   </span>
                 </div>
               </div>
+
+              {stats.activeThreats > 0 && (
+                <div className="pt-2">
+                  <Link
+                    href="/analytics"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
+                  >
+                    <span>View Threat Breakdown in Analytics</span>
+                    <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 

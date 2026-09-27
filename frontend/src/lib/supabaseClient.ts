@@ -8,23 +8,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholde
 // doesn't block the UI with a full-screen dev error overlay when Supabase is paused or offline.
 if (typeof window !== "undefined") {
   try {
-    // 1. Clean up any expired stale Supabase auth tokens in localStorage to prevent refresh loops
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
-        const item = localStorage.getItem(key);
-        if (item) {
-          try {
-            const parsed = JSON.parse(item);
-            if (parsed?.expires_at && parsed.expires_at * 1000 < Date.now()) {
-              localStorage.removeItem(key);
-            }
-          } catch {}
-        }
-      }
-    }
-
-    // 2. Wrap console.error in development to downgrade Supabase retryable network errors to console.warn
+    // Wrap console.error in development to downgrade Supabase retryable network errors to console.warn
     const originalConsoleError = console.error;
     console.error = (...args: any[]) => {
       const firstArg = args[0];
@@ -35,7 +19,7 @@ if (typeof window !== "undefined") {
         errorName === "AuthRetryableFetchError" ||
         errorName === "AuthApiError" ||
         errorMsg.includes("AuthRetryableFetchError") ||
-        errorMsg.includes("Failed to fetch") && errorMsg.includes("supabase");
+        (errorMsg.includes("Failed to fetch") && errorMsg.includes("supabase"));
 
       if (isSupabaseNetworkError) {
         console.warn("[AgriSight Supabase Local Fallback]", ...args);
@@ -49,6 +33,8 @@ if (typeof window !== "undefined") {
 /**
  * Resilient fetch wrapper to prevent Next.js Turbopack dev overlay crash when Supabase
  * project is paused, unresolvable on DNS, or network is offline.
+ * NOTE: Never return 400 "invalid_grant" on network errors, as that causes Supabase Auth
+ * to purge the user's refresh token and forcefully log them out. Returning 503 preserves the session.
  */
 const resilientFetch: typeof fetch = async (input, init) => {
   try {
@@ -63,32 +49,16 @@ const resilientFetch: typeof fetch = async (input, init) => {
 
     console.warn(`[AgriSight Supabase] Host unreachable (${err?.message || "fetch error"}). Target: ${targetUrl}`);
 
-    // If it's a token refresh attempt against a dead/paused project, return invalid_grant
-    // so Supabase Auth cleanly removes the stale session rather than retrying indefinitely
-    if (targetUrl.includes("/token") && targetUrl.includes("grant_type=refresh_token")) {
-      return new Response(
-        JSON.stringify({
-          error: "invalid_grant",
-          error_description: "Supabase host unreachable. Stale session cleared.",
-        }),
-        {
-          status: 400,
-          statusText: "Bad Request",
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
     return new Response(
       JSON.stringify({
-        msg: "Supabase host unreachable or project is paused.",
-        message: "Supabase host unreachable or project is paused.",
-        error_description: "Supabase host unreachable or project is paused.",
-        code: "supabase_unreachable",
+        msg: "Supabase host unreachable or network is offline.",
+        message: "Supabase host unreachable or network is offline.",
+        error_description: "Supabase host unreachable or network is offline.",
+        code: "network_offline",
       }),
       {
-        status: 400,
-        statusText: "Bad Request",
+        status: 503,
+        statusText: "Service Unavailable",
         headers: { "Content-Type": "application/json" },
       }
     );

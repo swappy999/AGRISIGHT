@@ -41,9 +41,9 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background p-6">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-surface p-6">
       <div className="max-w-md w-full mx-auto">
-        <div className="rounded-3xl shadow-xl p-8 bg-white space-y-6 border border-outline-variant/10">
+        <div className="rounded-3xl shadow-xl p-8 bg-surface-bright space-y-6 border border-outline-variant/30">
           <div className="flex flex-col items-center justify-center text-center">
             <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-on-primary mb-4 shadow-lg shadow-primary/20">
               <span className="material-symbols-outlined text-3xl">key</span>
@@ -63,7 +63,7 @@ export default function ResetPasswordPage() {
 
           {success ? (
             <div className="text-center py-6 space-y-6">
-              <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <div className="w-20 h-20 rounded-full bg-healthy-bg text-healthy flex items-center justify-center mx-auto border border-healthy-border">
                 <span className="material-symbols-outlined text-5xl">check_circle</span>
               </div>
               <div className="space-y-2">

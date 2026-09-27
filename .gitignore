@@ -76,11 +76,17 @@ frontend/android/captures/
 Thumbs.db
 desktop.ini
 .idea/
+*.iml
 .vscode/
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
+*.tmp
+*.temp
+*.bak
+*.swp
+.turbo/
 
 # ── Logs ──────────────────────────────────────────────────────────
 *.log
@@ -90,11 +96,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# ── Large binary artifacts (not for VCS) ──────────────────────────
+# ── Large binary artifacts & keys (not for VCS per a6.md) ─────────
 *.exe
 *.zip
 *.tar.gz
+*.apk
+!releases/AgriSight-release.apk
+*.aab
+*.keystore
+*.jks
+*.pem
+*.key
 android-studio-*.exe
 CP210x_VCP_Windows.zip
 CP210x_VCP_Windows/
 .claude/
+
